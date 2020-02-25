@@ -89,7 +89,7 @@ def create_images_embedding():
             ]
             # Append a new row at the end of the data frame
             df.loc[j] = row
-            df_part[j] = row
+            df_part.loc[j] = row
 
             # del faces
             # del embeddings
