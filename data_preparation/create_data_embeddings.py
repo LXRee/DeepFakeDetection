@@ -7,10 +7,17 @@ from tqdm import tqdm
 from facenet_pytorch import MTCNN, InceptionResnetV1
 
 from source.data_preparation.DetectionPipeline import DetectionPipeline
-# from source.data_preparation.helper.make_chunks import chunks
+from source.data_preparation.helper.custom_exceptions import NoFrames
 
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+# device = 'cpu'
 print(f'Running on device: {device}')
+# # list of paths in metadata for which there is no corresponding video
+# skip_paths = [
+#     'data\\dfdc_train_part_18\\wipjitfmta.mp4',
+#     'data\\dfdc_train_part_18\\wpuxmawbkj.mp4',
+#     'data\\dfdc_train_part_18\\pvohowzowy.mp4'
+# ]
 
 
 # Source: https://www.kaggle.com/timesler/facial-recognition-model-in-pytorch
@@ -42,7 +49,7 @@ def create_images_embedding():
     # define face search hyperparameters
     SCALE = 0.5
     N_FRAMES = None
-    WINDOW = 6
+    WINDOW = 6  # define how many frames skip per video
     # THREADS = 2
 
     # define multiprocessing work
@@ -66,39 +73,49 @@ def create_images_embedding():
     j = 0
     df_part = pd.DataFrame(columns=['filename', 'embedding', 'label'])
     part_len = 1000
-
+    first_round = True
+    # keep trace of skipped video just for curiosity
+    skipped_videos = 0
     with torch.no_grad():
         for path in tqdm(all_train_videos):
-            if j % part_len == 0 and j > 0:
-                print("Job completed {} operations and saved a df partition".format(j))
-                df_part.to_pickle(os.path.join(OUTPUT_DIR, 'partials', 'train_embeddings_{}.csv'.format(j // part_len)))
-                df_part = pd.DataFrame(columns=['filename', 'embedding', 'label'])
-            file_name = path
+            if j < 51000 or j > 75000:
+                j += 1
+                # flag = False
+            else:
+                if j % part_len == 0 and not first_round:
+                    print("Job completed {} operations and saved a df partition".format(j))
+                    df_part.to_pickle(os.path.join(OUTPUT_DIR, 'partials', 'train_embeddings_{}.csv'.format(j // part_len)))
+                    df_part = pd.DataFrame(columns=['filename', 'embedding', 'label'])
+                first_round = False
+                file_name = path
 
-            # Detect all faces occur in the video
-            faces = detection_pipeline(path)
+                try:
+                    # Detect all faces occur in the video
+                    faces = detection_pipeline(path)
 
-            # Calculate the distances of all faces' feature vectors to the centroid
-            embeddings = process_faces(faces, feature_extractor)
-            if embeddings is None:
-                continue
-            row = [
-                file_name,
-                embeddings,
-                1 if metadata[path]['label'] == 'FAKE' else 0
-            ]
-            # Append a new row at the end of the data frame
-            df.loc[j] = row
-            df_part.loc[j] = row
+                    # Calculate the distances of all faces' feature vectors to the centroid
+                    embeddings = process_faces(faces, feature_extractor, device)
+                    if embeddings is None:
+                        continue
+                    row = [
+                        file_name,
+                        embeddings,
+                        1 if metadata[path]['label'] == 'FAKE' else 0
+                    ]
+                    # Append a new row at the end of the data frame
+                    df.loc[j] = row
+                    df_part.loc[j] = row
 
-            # del faces
-            # del embeddings
-            torch.cuda.empty_cache()
-            j += 1
+                    # del faces
+                    # del embeddings
+                    torch.cuda.empty_cache()
+                    j += 1
+                except NoFrames:
+                    skipped_videos += 1
 
     # print(df.head())
     df.to_pickle(os.path.join(OUTPUT_DIR, 'train_embeddings_complete.csv'))
-    print("Job finished after {} video processed".format(j))
+    print("Job finished after {} video processed\nSkipped {} videos".format(j, skipped_videos))
 
 
 if __name__ == '__main__':

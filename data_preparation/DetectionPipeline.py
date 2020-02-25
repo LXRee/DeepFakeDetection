@@ -2,6 +2,7 @@ import cv2
 from PIL import Image
 from random import random
 import numpy as np
+from source.data_preparation.helper.custom_exceptions import NoFrames
 
 
 # Source: https://www.kaggle.com/timesler/facial-recognition-model-in-pytorch
@@ -35,6 +36,8 @@ class DetectionPipeline:
         # Create video reader and find length
         v_cap = cv2.VideoCapture(filename)
         v_len = int(v_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        if v_len == 0:
+            raise NoFrames
 
         # Pick 'n_frames' consequently frames from video
         if self.n_frames is None:
