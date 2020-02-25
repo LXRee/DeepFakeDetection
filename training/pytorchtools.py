@@ -1,15 +1,15 @@
 import numpy as np
-import torch as th
+import torch
 
 
-class Accuracy(th.nn.Module):
+class Accuracy(torch.nn.Module):
     def __init__(self):
         super(Accuracy, self).__init__()
 
-    def forward(self, outputs: th.Tensor, labels: th.Tensor, **kwargs):
-        _, predicted = th.max(outputs, 1)
+    def forward(self, outputs: torch.Tensor, labels: torch.Tensor, **kwargs):
+        # _, predicted = torch.max(outputs, 1)
         total = labels.size(0)
-        correct = (predicted == labels).sum().float()
+        correct = torch.sum(outputs-labels, 1).clamp(0, 1).sum().float()
         acc = 100 * correct / total
         return acc
 

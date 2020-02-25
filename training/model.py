@@ -54,7 +54,7 @@ class Model:
         network.to(device)
         acc_fn = Accuracy()
         if self.__loss_type == "BCE":
-            loss_fn = nn.BCEWithLogitsLoss(pos_weight=self.__pos_weights)
+            loss_fn = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(self.__pos_weights).double())
         else:
             raise ValueError("{} loss is not implemented yet".format(self.__loss_type))
 
@@ -98,7 +98,7 @@ class Model:
                 net_inputs = batch['embedding'].to(device)
                 # batch input comes as sparse
                 # Get the labels (the last word of each sequence)
-                labels = batch['labels'].to(device)
+                labels = batch['label'].to(device)
                 # Forward pass
                 net_outs, _ = net(net_inputs)
                 # Update network
@@ -125,17 +125,17 @@ class Model:
             # validation
             net.eval()
             conc_out: torch.Tensor = torch.tensor([]).to(device)
-            conc_label: torch.Tensor = torch.tensor([]).long().to(device)
+            conc_label: torch.Tensor = torch.tensor([]).to(device)
             with torch.no_grad():
                 for i, batch in enumerate(val_set):
                     net_inputs = batch['embedding'].to(device)
-                    labels = batch['label']
+                    labels = batch['label'].to(device)
 
                     # evaluate the network over the input
                     net_outs, _ = net(net_inputs)
 
                     conc_out = torch.cat([conc_out, torch.unsqueeze(net_outs, dim=-1)])
-                    conc_label = torch.cat([conc_label, torch.unsqueeze(labels, dim=-1)]).long()
+                    conc_label = torch.cat([conc_label, torch.unsqueeze(labels, dim=-1)])
                 epoch_val_loss = self.loss(conc_out, conc_label)
                 epoch_val_acc = self.acc(conc_out, conc_label).float()
 

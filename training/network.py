@@ -2,6 +2,7 @@
 
 from torch import nn
 import torch
+import torch.nn.functional as F
 
 
 class Network(nn.Module):
@@ -27,7 +28,9 @@ class Network(nn.Module):
         # LSTM
         x, rnn_state = self.rnn(inputs, state)
         # Linear layer
-        x = self.out(x)
+        # we want to consider only the last time step since we want to understand what
+        # the lstm has seen.
+        x = self.out(x[:, -1, :])
         return x, rnn_state
 
 

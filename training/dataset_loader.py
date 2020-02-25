@@ -18,7 +18,7 @@ class EmbeddingsDataset(Dataset):
         self.__data = pd.read_pickle(csv_path)
 
         # keep locations indexes without loading the values in memory
-        self.__locs = np.linspace(0, self.__data.shape[0], self.__data.shape[0], dtype='uint32')
+        self.__locs = np.linspace(0, self.__data.shape[0] - 1, self.__data.shape[0], dtype='uint32')
 
         if shuffle:
             np.random.shuffle(self.__locs)
@@ -28,6 +28,10 @@ class EmbeddingsDataset(Dataset):
         self.__pos_weight = pos_labels / (self.__data.shape[0] - pos_labels)
 
         self.transform = transform
+
+    @property
+    def get_pos_weight(self):
+        return self.__pos_weight
 
     def __len__(self):
         return self.__locs.shape[0]
@@ -62,9 +66,19 @@ class RandomCrop:
 
 class ToTensor:
     def __call__(self, sample):
-        # Convert one hot encoded text to pytorch tensor
         embedding = torch.tensor(sample['embedding']).float()
-        return {'embedding': embedding}
+        label = torch.tensor(sample['label']).float()
+        return {**sample, 'embedding': embedding, 'label': label}
+
+
+class LabelOneHot:
+    def __init__(self):
+        self.l = {0: np.array([0, 1], dtype='uint8'),
+                  1: np.array([1, 0], dtype='uint8')
+                  }
+
+    def __call__(self, sample):
+        return {**sample, 'label': self.l[sample['label']]}
 
 
 if __name__ == '__main__':
