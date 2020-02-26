@@ -1,4 +1,3 @@
-import torch.multiprocessing as tmp
 import os
 import json
 import torch
@@ -12,12 +11,6 @@ from source.data_preparation.helper.custom_exceptions import NoFrames
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 # device = 'cpu'
 print(f'Running on device: {device}')
-# # list of paths in metadata for which there is no corresponding video
-# skip_paths = [
-#     'data\\dfdc_train_part_18\\wipjitfmta.mp4',
-#     'data\\dfdc_train_part_18\\wpuxmawbkj.mp4',
-#     'data\\dfdc_train_part_18\\pvohowzowy.mp4'
-# ]
 
 
 # Source: https://www.kaggle.com/timesler/facial-recognition-model-in-pytorch
@@ -26,17 +19,16 @@ def process_faces(faces, feature_extractor, device='cuda:0'):
     faces = [f for f in faces if f is not None]
     if len(faces) == 0:
         return None
+
+    # send faces array to device
     faces = torch.cat(faces).to(device)
 
-    # Generate facial feature vectors using a pretrained model
+    # Generate facial feature vectors using a pretrained model.
+    # Keep the generated features (512 per face) as an "embedding" vector to be fed into a LSTM network.
+    # My guess is that recognize fake faces is simpler if they are moving.
     embeddings = feature_extractor(faces)
 
-    # Calculate centroid for video and distance of each face's feature vector from centroid
-    # centroid = embeddings.mean(dim=0)
-    # x = (embeddings - centroid).norm(dim=1).cpu().numpy()
-
     return embeddings.detach().cpu().numpy()
-    # return x
 
 
 def create_images_embedding():
@@ -44,21 +36,21 @@ def create_images_embedding():
     TRAIN_DIR = 'data'
     OUTPUT_DIR = 'embeddings'
 
+    # load metadata.
+    # Metadata is a dictionary with key: path, value: label.
+    # It has also other keys, but I'm not interested in them. Just go explore in case.
     metadata = json.load(open(os.path.join(TRAIN_DIR, 'data.json'), 'r'))
 
-    # define face search hyperparameters
+    # scale image for computation. I'm keeping it as big as possible to facilitate feature extraction
     SCALE = 0.5
+    # number of frames to keep from the video. None will keep as many as possible
     N_FRAMES = None
-    WINDOW = 6  # define how many frames skip per video
-    # THREADS = 2
+    # define how many frame to skip from one another
+    WINDOW = 6
 
-    # define multiprocessing work
-    # pool = tmp.Pool(processes=THREADS)
-    # arguments = chunks(metadata, len(metadata.keys()) // THREADS)
-    # result = [pool.apply_async(do_the_job, args=(i, a)) for i, a in enumerate(arguments)]
-    #  _ = [p.get() for p in result]
     # Get the paths of all train videos
     all_train_videos = list(metadata.keys())
+
     # Load face detector
     face_detector = MTCNN(margin=14, keep_all=True, factor=0.5, device=device).eval()
 
@@ -68,52 +60,66 @@ def create_images_embedding():
     # Define face detection pipeline
     detection_pipeline = DetectionPipeline(detector=face_detector, n_frames=N_FRAMES, resize=SCALE, window=WINDOW)
 
+    # create empty dataframe that will receive faces embeddings
     df = pd.DataFrame(columns=['filename', 'embedding', 'label'])
-
-    j = 0
+    # create empty partition dataframe to store faces embeddings progressively.
     df_part = pd.DataFrame(columns=['filename', 'embedding', 'label'])
+
+    # index to decide which frames to control
+    j = 0
+
+    # number of videos to keep per partition dataframe
     part_len = 1000
+
+    # useful flag to skip saving partition if first round
     first_round = True
-    # keep trace of skipped video just for curiosity
+
+    # keep trace of skipped video (no video, but present in metadata) just for curiosity
     skipped_videos = 0
+
+    # no gradient updates for networks
     with torch.no_grad():
         for path in tqdm(all_train_videos):
-            if j < 51000 or j > 75000:
+            # decide which videos to skip
+            if j < 76000 or j > 100000:
                 j += 1
-                # flag = False
             else:
+                # save partition
                 if j % part_len == 0 and not first_round:
-                    print("Job completed {} operations and saved a df partition".format(j))
+                    print("\nJob completed {}->{} operations and saved a df partition.\n{} videos skipped.\n".format(j-part_len, j, skipped_videos))
                     df_part.to_pickle(os.path.join(OUTPUT_DIR, 'partials', 'train_embeddings_{}.csv'.format(j // part_len)))
                     df_part = pd.DataFrame(columns=['filename', 'embedding', 'label'])
                 first_round = False
-                file_name = path
 
                 try:
                     # Detect all faces occur in the video
                     faces = detection_pipeline(path)
 
-                    # Calculate the distances of all faces' feature vectors to the centroid
+                    # Calculate faces' features embeddings
                     embeddings = process_faces(faces, feature_extractor, device)
+
                     if embeddings is None:
                         continue
+                    # define row to save in dataframe
                     row = [
-                        file_name,
+                        path,
                         embeddings,
                         1 if metadata[path]['label'] == 'FAKE' else 0
                     ]
+
                     # Append a new row at the end of the data frame
                     df.loc[j] = row
                     df_part.loc[j] = row
 
-                    # del faces
-                    # del embeddings
-                    torch.cuda.empty_cache()
                     j += 1
                 except NoFrames:
+                    # the path points to a missing video. Just skip it.
                     skipped_videos += 1
+                    if j % part_len == 0:
+                        first_round = True
 
-    # print(df.head())
+    # save entire dataframe. Most of the time is useless, since we have to manage to many, many videos and partitions
+    # are more feasible.
     df.to_pickle(os.path.join(OUTPUT_DIR, 'train_embeddings_complete.csv'))
     print("Job finished after {} video processed\nSkipped {} videos".format(j, skipped_videos))
 
