@@ -1,11 +1,19 @@
+import torch
 import cv2
-from PIL import Image
 from random import random
 import numpy as np
 from source.data_preparation.helper.custom_exceptions import NoFrames
 
 
-# Source: https://www.kaggle.com/timesler/facial-recognition-model-in-pytorch
+# Yield successive n-sized
+# chunks from l.
+def divide_chunks(l, n):
+    # looping till length l
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
+
+
+# Heavily modified source: https://www.kaggle.com/timesler/facial-recognition-model-in-pytorch
 class DetectionPipeline:
     """Pipeline class for detecting faces in the frames of a video file."""
 
@@ -37,6 +45,7 @@ class DetectionPipeline:
         v_cap = cv2.VideoCapture(filename)
         v_len = int(v_cap.get(cv2.CAP_PROP_FRAME_COUNT))
         if v_len == 0:
+            # in case of missing video file just skip and and raise exception
             raise NoFrames
 
         # Pick 'n_frames' consequently frames from video
@@ -44,36 +53,61 @@ class DetectionPipeline:
             start_sample = 0
             stop_sample = v_len
         else:
-            start_sample = int(random()*(v_len - self.n_frames * self.window))
-            stop_sample = self.n_frames + start_sample
+            start_sample = int(random()*(v_len - self.n_frames * self.window))  # take into consideration window length
+            stop_sample = self.n_frames * self.window + start_sample
 
+        # avoid indexes checking by clamping start and stop length
         start_sample = np.clip(start_sample, 0, v_len)
         stop_sample = np.clip(stop_sample, 0, v_len)
 
         # set initial frame from which to start reading
         v_cap.set(cv2.CAP_PROP_POS_FRAMES, start_sample)
+
+        # define frame height and width to prepare an empty numpy vector
         v_height = int(v_cap.get(cv2.CAP_PROP_FRAME_HEIGHT) * self.resize)
         v_width = int(v_cap.get(cv2.CAP_PROP_FRAME_WIDTH) * self.resize)
-        # Loop through frames
+
+        # batch size is the quantity of images that are going to be kept
         batch_size = (stop_sample - start_sample) // self.window
+
+        # prepare emtpy batch of frames
         frames = np.zeros((batch_size, v_height, v_width, 3), dtype='uint8')
 
+        # Loop through frames
         i = 0
-        # frames = []
         while i*self.window < stop_sample - self.window:
-            _ = v_cap.grab()  # select next frame
+            # select next frame
+            _ = v_cap.grab()
+
             # Load frame
             success, frame = v_cap.retrieve()
+
             if not success:
                 continue
+
+            # decode and resize frame
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame = cv2.resize(frame, (v_width, v_height))
+
+            # put frame into batch of frames
             frames[i] = frame
 
+            # index update
             i += 1
 
-        faces = self.detector([frames[i] for i in range(len(frames))])
+        # Clean cuda cache every loop in order to process also high-bitrate videos in parallel with other processes.
+        # Keep a list of images as long as possible, since it is quite faster.
+        # If there is memory problem, just decrease "permitted_length".
+        permitted_length = 25
+        chunks = divide_chunks(frames, permitted_length)
+        faces = []
+        for frame in chunks:
+            # detect faces in list of frames
+            faces.extend(self.detector([frame[i] for i in range(len(frame))]))
+            # Free useless cache. Every step is independent from one another.
+            torch.cuda.empty_cache()
 
+        # release video hook
         v_cap.release()
 
         return faces
