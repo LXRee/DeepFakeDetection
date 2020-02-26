@@ -75,6 +75,8 @@ class Model:
         state = {
             'epoch': self.last_epoch + 1,
             'state_dict': self.net.state_dict(),
+            # # save only if you want to continue training from a certain point. It is really heavy and is not
+            # # useful for inference.
             # 'optim_dict': self.optimizer.state_dict()
         }
         self.net: nn.Module
