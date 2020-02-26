@@ -6,7 +6,7 @@ from typing import Union, List, Dict
 from torchvision import transforms
 from torch.utils.data import random_split, DataLoader
 
-from source.training.dataset_loader import EmbeddingsDataset, ToTensor, RandomCrop, LabelOneHot
+from source.training.dataset import EmbeddingsDataset, ToTensor, RandomCrop, LabelOneHot
 from source.training.model import Model
 
 device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
