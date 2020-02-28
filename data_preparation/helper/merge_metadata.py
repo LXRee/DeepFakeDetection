@@ -1,7 +1,7 @@
 import os, json
 from tqdm import tqdm
 
-# merge all metadata.json from splits
+# merge all metadata.json from dataset splits
 
 if __name__ == '__main__':
     # read all metadata.json from each folder
@@ -22,4 +22,4 @@ if __name__ == '__main__':
             for key, value in metadata.items():
                 all_meta[os.path.join(root_dir, key)] = value
 
-    json.dump(all_meta, open(os.path.join(splits_folder, 'data.json'), 'w'))
+    json.dump(all_meta, open(os.path.join(splits_folder, 'metadata.json'), 'w'))

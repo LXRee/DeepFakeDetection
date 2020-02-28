@@ -21,7 +21,7 @@ def extract_audio_from_source(input_path, dest_path):
         paths.extend([os.path.join(root, file) for file in files])
     # needed for multiprocessing
     paths = list(paths)
-    processors = 4
+    processors = 6
     pool = mp.Pool(processes=processors)
     arguments = list_chunks(paths, len(paths) // processors)
     results = [pool.apply_async(extract_audio_from_paths, args=(a, dest_path)) for a in arguments]
@@ -30,7 +30,6 @@ def extract_audio_from_source(input_path, dest_path):
 
 
 if __name__ == '__main__':
-    os.chdir('C:\\Users\\mawanda\\AppData\\Local\\ffmpeg-20200225-36451f9-win64-static\\bin')
-    out_path = 'C:\\Users\\mawanda\\PyCharmProjects\\DeepFakeCompetition\\audio'
-    in_path = 'C:\\Users\\mawanda\\PyCharmProjects\\DeepFakeCompetition\\data'
+    in_path = 'C:\\Users\\mawanda\\PyCharmProjects\\DeepFakeCompetition\\test_data'
+    out_path = 'C:\\Users\\mawanda\\PyCharmProjects\\DeepFakeCompetition\\test_audio'
     extract_audio_from_source(in_path, out_path)

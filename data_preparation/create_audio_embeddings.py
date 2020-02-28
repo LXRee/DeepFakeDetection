@@ -136,8 +136,8 @@ def predict_on_audio(batch_audio_path, audio_model, batch_n):
 
 
 if __name__ == '__main__':
-    input_dir = 'audio'
-    output_dir = 'audio_embeddings'
+    input_dir = 'test_audio'
+    output_dir = ''
     audio_paths = []
     for root, dirs, files in os.walk(input_dir):
         # prepare list of paths to audio
@@ -167,4 +167,4 @@ if __name__ == '__main__':
             df.loc[i] = row
             i += 1
 
-    df.to_pickle(os.path.join(output_dir, 'audio_embeddings.csv'))
+    df.to_pickle('test_audio_embeddings.csv')
