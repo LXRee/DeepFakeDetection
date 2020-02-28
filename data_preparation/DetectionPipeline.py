@@ -3,14 +3,7 @@ import cv2
 from random import random
 import numpy as np
 from source.data_preparation.helper.custom_exceptions import NoFrames
-
-
-# Yield successive n-sized
-# chunks from l.
-def divide_chunks(l, n):
-    # looping till length l
-    for i in range(0, len(l), n):
-        yield l[i:i + n]
+from source.data_preparation.helper.make_chunks import list_chunks
 
 
 # Heavily modified source: https://www.kaggle.com/timesler/facial-recognition-model-in-pytorch
@@ -98,8 +91,8 @@ class DetectionPipeline:
         # Clean cuda cache every loop in order to process also high-bitrate videos in parallel with other processes.
         # Keep a list of images as long as possible, since it is quite faster.
         # If there is memory problem, just decrease "permitted_length".
-        permitted_length = 25
-        chunks = divide_chunks(frames, permitted_length)
+        permitted_length = 10
+        chunks = list_chunks(frames, permitted_length)
         faces = []
         for frame in chunks:
             # detect faces in list of frames

@@ -19,12 +19,11 @@ class Model:
                  optimizer: str = "adam",
                  loss: str = "crossentropy",
                  lr: float = .1,
-                 embedding_dim: int = 512):
+                 ):
         self.__net_params = net_params
         self.__optimizer_type = optimizer
         self.__loss_type = loss
         self.__pos_weights = pos_weights
-        self.embedding_dim = embedding_dim
         self.learning_rate = lr
 
         self.acc, self.loss, self.optimizer, self.net = self.__build_model()
@@ -41,12 +40,16 @@ class Model:
         Metorchod to build torche network, torche loss and its optimizer.
         Return: loss, optimizer, network
         """
-        hidden_units, layers_num, dropout_prob = self.__net_params['hidden_units'], self.__net_params['layers_num'], \
-                                                 self.__net_params['dropout_prob']
+        hidden_units, layers_num, dropout_prob, video_emb_dim, audio_emb_dim = self.__net_params['hidden_units'], \
+                                                                               self.__net_params['layers_num'], \
+                                                                               self.__net_params['dropout_prob'], \
+                                                                               self.__net_params['video_embedding_dim'], \
+                                                                               self.__net_params['audio_embedding_dim']
         network: nn.Module = Network(
             hidden_units,
             layers_num,
-            self.embedding_dim,
+            video_emb_dim,
+            audio_emb_dim,
             dropout_prob
         )
 
@@ -97,15 +100,15 @@ class Model:
             conc_acc: torch.Tensor = torch.tensor([]).to(device)
 
             for i, batch in enumerate(train_set):
-                net_inputs = batch['embedding'].to(device)
+                net_inputs = (batch['video_embedding'].to(device), batch['audio_embedding'].to(device))
                 # batch input comes as sparse
                 # Get the labels (the last word of each sequence)
                 labels = batch['label'].to(device)
                 # Forward pass
                 net_outs, _ = net(net_inputs)
                 # Update network
-                loss = loss_fn(net_outs, labels)
-                acc = acc_fn(net_outs, labels)
+                loss = loss_fn(net_outs.squeeze(), labels)
+                acc = acc_fn(net_outs.squeeze(), labels)
 
                 # Eventually clear previous recorded gradients
                 optimizer.zero_grad()
@@ -130,13 +133,15 @@ class Model:
             conc_label: torch.Tensor = torch.tensor([]).to(device)
             with torch.no_grad():
                 for i, batch in enumerate(val_set):
-                    net_inputs = batch['embedding'].to(device)
+                    net_inputs = (batch['video_embedding'].to(device), batch['audio_embedding'].to(device))
+                    # batch input comes as sparse
+                    # Get the labels (the last word of each sequence)
                     labels = batch['label'].to(device)
 
                     # evaluate the network over the input
                     net_outs, _ = net(net_inputs)
 
-                    conc_out = torch.cat([conc_out, torch.unsqueeze(net_outs, dim=-1)])
+                    conc_out = torch.cat([conc_out, torch.unsqueeze(net_outs.squeeze(), dim=-1)])
                     conc_label = torch.cat([conc_label, torch.unsqueeze(labels, dim=-1)])
                 epoch_val_loss = self.loss(conc_out, conc_label)
                 epoch_val_acc = self.acc(conc_out, conc_label).float()

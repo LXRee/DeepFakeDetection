@@ -81,7 +81,7 @@ def create_images_embedding():
     with torch.no_grad():
         for path in tqdm(all_train_videos):
             # decide which videos to skip
-            if j < 76000 or j > 100000:
+            if j < 72000 or j > 75000:
                 j += 1
             else:
                 # save partition

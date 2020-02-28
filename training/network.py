@@ -10,27 +10,32 @@ class Network(nn.Module):
     def __init__(self,
                  hidden_units,
                  layers_num,
-                 embedding_dim=512,
+                 video_embedding_dim=512,
+                 audio_embedding_dim=50,
                  dropout_prob=0.):
         # Call the parent init function (required!)
         super().__init__()
 
         # Define recurrent layer
-        self.rnn = nn.LSTM(input_size=embedding_dim,
+        self.rnn = nn.LSTM(input_size=video_embedding_dim,
                            hidden_size=hidden_units,
                            num_layers=layers_num,
                            dropout=dropout_prob,
                            batch_first=True)
+        # FC layer to let the network decide how much audio will be considered to decide the result
+        self.fc = nn.Linear(hidden_units + audio_embedding_dim, 512)
         # Define output layer
-        self.out = nn.Linear(hidden_units, 2)
+        self.out = nn.Linear(512, 1)
 
     def forward(self, inputs, state=None):
-        # LSTM
-        x, rnn_state = self.rnn(inputs, state)
-        # Linear layer
-        # we want to consider only the last time step since we want to understand what
+        # LSTM for video information
+        x, rnn_state = self.rnn(inputs[0], state)
+        # concatenating audio information
+        # we want to consider only the last time step for video since we want to understand what
         # the lstm has seen.
-        x = self.out(x[:, -1, :])
+        x = self.fc(torch.cat([x[:, -1, :], inputs[1]], dim=1))
+        # Linear layer
+        x = self.out(x)
         return x, rnn_state
 
 
