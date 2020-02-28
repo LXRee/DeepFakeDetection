@@ -46,7 +46,7 @@ def merge_dataframes(source, dest):
     print('Merge saved at file: {}'.format(os.path.join(dest, 'merged.gzip')))
 
 
-def merge_audio_video_df(audio_df, video_df):
+def merge_audio_video_df(audio_df, video_df, for_submission = False):
     """
     All audio_df and video_df filenames are unique, so we are using this information to store a key-value dict to
     index audio_df and load its information in video_df
@@ -59,7 +59,10 @@ def merge_audio_video_df(audio_df, video_df):
     for i in range(len(audio_df['filename'])):
         label_to_key[audio_df['filename'].loc[i]] = i
     # create empty dataframe
-    df = pd.DataFrame(columns=['filename', 'video_embedding', 'audio_embedding', 'label'])
+    if for_submission:
+        df = pd.DataFrame(columns=['filename', 'video_embedding', 'audio_embedding'])
+    else:
+        df = pd.DataFrame(columns=['filename', 'video_embedding', 'audio_embedding', 'label'])
     video_no_audio = 0
     for i in tqdm(range(len(video_df['filename'])), desc="Merging progress"):
         file_path = video_df['filename'].loc[i]
@@ -73,7 +76,10 @@ def merge_audio_video_df(audio_df, video_df):
             audio_embedding = np.ones(50, dtype='float32')
             video_no_audio += 1
             print('{} has no audio! Counted {}'.format(file_path, video_no_audio))
-        df.loc[i] = [file_path, video_df['embedding'].loc[i], audio_embedding, video_df['label'].loc[i]]
+        if for_submission:
+            df.loc[i] = [file_path, video_df['embedding'].loc[i], audio_embedding]
+        else:
+            df.loc[i] = [file_path, video_df['embedding'].loc[i], audio_embedding, video_df['label'].loc[i]]
     return df
 
 def save_many_in_path(path, df):
@@ -90,9 +96,9 @@ def save_many_in_path(path, df):
 if __name__ == '__main__':
     # merge_dataframes('video_embeddings/partials', 'video_embeddings')
     print("Loading video and audio DataFrames...")
-    audio_df = pd.read_pickle('audio_embeddings/audio_embeddings.csv')
-    video_df = pd.read_pickle('video_embeddings/merged.csv')
+    audio_df = pd.read_pickle('test_audio_embeddings.csv')
+    video_df = pd.read_pickle('test_video_embeddings.csv')
     print("DataFrames loaded. Now merging...")
-    df = merge_audio_video_df(audio_df, video_df)
+    df = merge_audio_video_df(audio_df, video_df, for_submission=False)
     print("Finish merging. Now saving...")
-    save_many_in_path('test_dataset', df)
+    df.to_pickle('test_audio_video_embeddings.csv')

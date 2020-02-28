@@ -31,15 +31,79 @@ def process_faces(faces, feature_extractor, device='cuda:0'):
     return embeddings.detach().cpu().numpy()
 
 
+def create_submission_embedding():
+    # TRAIN_DIR = '/kaggle/input/deepfake-detection-challenge/train_sample_videos/'
+    TEST_DIR = 'test_data'
+    OUTPUT_DIR = ''
+
+    # scale image for computation. I'm keeping it as big as possible to facilitate feature extraction
+    SCALE = 0.5
+    # number of frames to keep from the video. None will keep as many as possible
+    N_FRAMES = None
+    # define how many frame to skip from one another
+    WINDOW = 6
+
+    # Get the paths of all train videos
+    all_test_videos = []
+    for root, dirs, files in os.walk(TEST_DIR):
+        all_test_videos.extend([os.path.join(root, file) for file in files])
+
+    # Load face detector
+    face_detector = MTCNN(margin=14, keep_all=True, factor=0.5, device=device).eval()
+
+    # Load facial recognition model
+    feature_extractor = InceptionResnetV1(pretrained='vggface2', device=device).eval()
+
+    # Define face detection pipeline
+    detection_pipeline = DetectionPipeline(detector=face_detector, n_frames=N_FRAMES, resize=SCALE, window=WINDOW)
+
+    # create empty dataframe that will receive faces embeddings
+    df = pd.DataFrame(columns=['filename', 'embedding'])
+
+    # keep trace of skipped video (no video, but present in metadata) just for curiosity
+    skipped_videos = 0
+
+    j = 0
+    with torch.no_grad():
+        for path in tqdm(all_test_videos):
+            try:
+                # Detect all faces occur in the video
+                faces = detection_pipeline(path)
+
+                # Calculate faces' features embeddings
+                embeddings = process_faces(faces, feature_extractor, device)
+
+                if embeddings is None:
+                    continue
+                # define row to save in dataframe
+                row = [
+                    path,
+                    embeddings
+                ]
+
+                # Append a new row at the end of the data frame
+                df.loc[j] = row
+
+                j += 1
+            except NoFrames:
+                # the path points to a missing video. Just skip it.
+                skipped_videos += 1
+
+    # save entire dataframe. Most of the time is useless, since we have to manage to many, many videos and partitions
+    # are more feasible.
+    df.to_pickle(os.path.join(OUTPUT_DIR, 'test_video_embeddings.csv'))
+    print("Job finished after {} video processed\nSkipped {} videos".format(j, skipped_videos))
+
+
 def create_images_embedding():
     # TRAIN_DIR = '/kaggle/input/deepfake-detection-challenge/train_sample_videos/'
-    TRAIN_DIR = 'data'
-    OUTPUT_DIR = 'embeddings'
+    TRAIN_DIR = 'test_data'
+    OUTPUT_DIR = ''
 
     # load metadata.
     # Metadata is a dictionary with key: path, value: label.
     # It has also other keys, but I'm not interested in them. Just go explore in case.
-    metadata = json.load(open(os.path.join(TRAIN_DIR, 'data.json'), 'r'))
+    metadata = json.load(open(os.path.join(TRAIN_DIR, 'metadata.json'), 'r'))
 
     # scale image for computation. I'm keeping it as big as possible to facilitate feature extraction
     SCALE = 0.5
@@ -69,7 +133,7 @@ def create_images_embedding():
     j = 0
 
     # number of videos to keep per partition dataframe
-    part_len = 1000
+    part_len = 1000000
 
     # useful flag to skip saving partition if first round
     first_round = True
@@ -79,9 +143,10 @@ def create_images_embedding():
 
     # no gradient updates for networks
     with torch.no_grad():
-        for path in tqdm(all_train_videos):
+        for name in tqdm(all_train_videos):
+            path = os.path.join(TRAIN_DIR, name)
             # decide which videos to skip
-            if j < 72000 or j > 75000:
+            if j < 0:
                 j += 1
             else:
                 # save partition
@@ -104,7 +169,7 @@ def create_images_embedding():
                     row = [
                         path,
                         embeddings,
-                        1 if metadata[path]['label'] == 'FAKE' else 0
+                        1 if metadata[name]['label'] == 'FAKE' else 0
                     ]
 
                     # Append a new row at the end of the data frame
@@ -120,9 +185,10 @@ def create_images_embedding():
 
     # save entire dataframe. Most of the time is useless, since we have to manage to many, many videos and partitions
     # are more feasible.
-    df.to_pickle(os.path.join(OUTPUT_DIR, 'train_embeddings_complete.csv'))
+    df.to_pickle(os.path.join(OUTPUT_DIR, 'test_video_embeddings.csv'))
     print("Job finished after {} video processed\nSkipped {} videos".format(j, skipped_videos))
 
 
 if __name__ == '__main__':
     create_images_embedding()
+    # create_test_embedding()
