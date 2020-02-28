@@ -8,6 +8,13 @@ anche per una macchina capire se un video è falso principalmente se è in movim
 La secondaria è che sicuramente tanto vale usare lavoro già fatto. Per questo motivo si vedano le sezioni di cui parlerò
 più tardi.
 
+Mi sono ampiamente ispirato ai seguenti notebook, mentre l'idea della LSTM è originale:
+**Data preparation**: https://www.kaggle.com/phunghieu/deepfake-detection-data-preparation-baseline
+
+**Training**: https://www.kaggle.com/phunghieu/deepfake-detection-training-baseline
+
+**Audio features**: https://www.kaggle.com/phoenix9032/fake-audio-detector
+
 ## Passi
 1. **scaricare il dataset**. 
 Il dataset contiene TOT video mp4. I video possono avere o faccia, o audio, o entrambi falsi.
@@ -43,7 +50,14 @@ Il codice per la submission ancora non è pronto, ma basta guardare uno dei qual
 capire come farlo.
 
 # Da fare
+## Controllare, controllare, controllare il codice.
+La val loss è sospettosamente bassa. Inoltre l'idea è una baseline, penso abbia ampi margini di miglioramento.
+## Rendere il codice più maneggevole.
+In particolare, migliorare l'approvvigionamento delle features per il training (e non occupare tutta la RAM) e accelerare il training è sicuramente da fare.
+## Pensare ad una strategia di training sensata
+Senza spendere ore e ore per niente
 ## Preparare codice per submission
-## Modificare il codice di inferenza perché l'estrazione di feature da video e audio + inferenza siano operazioni continue
+Basterà guardare uno dei notebbok, ma è una palla al piede perché non ci sarà separazione di codice.
+Però bisogna modificare il codice di inferenza perché l'estrazione di feature da video e audio + inferenza siano operazioni continue.
 ## VINCERE
 
