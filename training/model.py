@@ -161,3 +161,29 @@ class Model:
                     print("Early stopping")
                     self.last_epoch = epoch
                     break
+
+    def evaluate(self, test_set: DataLoader):
+        self.net: torch.nn.Module
+        net = self.net
+        net.eval()
+        with torch.no_grad():
+            conc_out: torch.Tensor = torch.tensor([]).to(device)
+            conc_label: torch.Tensor = torch.tensor([]).to(device)
+            with torch.no_grad():
+                for i, batch in enumerate(test_set):
+                    net_inputs = (batch['video_embedding'].to(device), batch['audio_embedding'].to(device))
+                    # batch input comes as sparse
+                    # Get the labels (the last word of each sequence)
+                    labels = batch['label'].to(device)
+
+                    # evaluate the network over the input
+                    net_outs, _ = net(net_inputs)
+
+                    conc_out = torch.cat([conc_out, torch.unsqueeze(net_outs.squeeze(), dim=-1)])
+                    conc_label = torch.cat([conc_label, torch.unsqueeze(labels, dim=-1)])
+                epoch_test_loss = self.loss(conc_out.squeeze(), conc_label.squeeze())
+                epoch_test_acc = self.acc(conc_out.squeeze(), conc_label.squeeze())
+
+                # if epoch % 1 == 0:
+                print("Test:\tacc: {:.4f}\n\t\tloss: {:.4f}".format(epoch_test_acc,
+                                                              epoch_test_loss))
