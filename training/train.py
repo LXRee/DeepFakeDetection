@@ -19,31 +19,33 @@ print(f'Running on device: {device}')
 parser = argparse.ArgumentParser(description='Train the deepfake network.')
 
 # Dataset
-parser.add_argument('--datasetpath',    type=str,   default='audio_video_embeddings.csv', help='Path of the train csv folder')
+parser.add_argument('--datasetpath',    type=str,   default='train_audio_video_embeddings.csv', help='Path of the train csv folder')
+parser.add_argument('--testdatasetpath',    type=str,   default='test_audio_video_embeddings.csv', help='Path of the test csv folder')
 parser.add_argument('--crop_len',       type=int,   default=10,               help='Number of frames features to be randomly cropped from video')
 
 # Network
 parser.add_argument('--video_embedding_dim',   type=int,   default=512,    help='Dimension of features vector of video')
 parser.add_argument('--audio_embedding_dim',   type=int,   default=50,    help='Dimension of features vector of audio')
-parser.add_argument('--hidden_units',   type=int,   default=128,    help='Number of RNN hidden units')
-parser.add_argument('--layers_num',     type=int,   default=2,      help='Number of RNN stacked layers')
+parser.add_argument('--hidden_units',   type=int,   default=256,    help='Number of RNN hidden units')
+parser.add_argument('--layers_num',     type=int,   default=3,      help='Number of RNN stacked layers')
 parser.add_argument('--dropout_prob',   type=float, default=0.3,    help='Dropout probability')
 parser.add_argument('--optimizer',      type=str,   default='adam', help='Type of optimizer')
 parser.add_argument('--loss_type',      type=str, default='BCE',    help='Loss type')
 
 # Training
-parser.add_argument('--batchsize',      type=int,   default=512,   help='Training batch size')
+parser.add_argument('--batchsize',      type=int,   default=128,   help='Training batch size')
 parser.add_argument('--val_size',      type=float,   default=.3,   help='Dimension of validation')
 parser.add_argument('--learning_rate',  type=float,   default=1e-3,   help='Learning rate')
 parser.add_argument('--num_epochs',     type=int,   default=100000,    help='Number of training epochs')
-parser.add_argument('--patience',     type=int,   default=200,    help='Patience to use in EarlyStopping')
+parser.add_argument('--patience',     type=int,   default=10,    help='Patience to use in EarlyStopping')
 
 # Save
-parser.add_argument('--out_dir',     type=str,   default='exp3',    help='Where to save models and params')
+parser.add_argument('--out_dir',     type=str,   default='exp11',    help='Where to save models and params')
 
 args = parser.parse_args()
 
-DATASET_PATH = args.datasetpath
+TRAIN_DATASET_PATH = args.datasetpath
+TEST_DATASET_PATH = args.testdatasetpath
 CROP_LEN = args.crop_len
 
 VIDEO_EMBEDDING_DIM = args.video_embedding_dim
@@ -63,7 +65,7 @@ PATIENCE = args.patience
 
 
 def __train__():
-    dataset = EmbeddingsDataset(csv_path=DATASET_PATH, shuffle=True)
+    dataset = EmbeddingsDataset(csv_path=TRAIN_DATASET_PATH, shuffle=True)
     net_params = {
         'hidden_units': HIDDEN_UNITS,
         'layers_num': LAYERS_NUM,
@@ -107,9 +109,49 @@ def __train__():
         patience=PATIENCE,
         run_name=RUN_PATH
     )
+
     with open(os.path.join(RUN_PATH, 'last_epoch_value.txt'), 'w') as f:
         f.write(str(model.last_epoch))
 
 
+def __evaluate__():
+    # %% Load training parameters
+    model_dir = RUN_PATH
+    print('Loading model from: %s' % model_dir)
+    training_args = json.load(open(os.path.join(model_dir, 'training_args.json')))
+
+    trans = transforms.Compose([
+        RandomCrop(CROP_LEN),
+        # LabelOneHot(),
+        ToTensor()
+    ])
+
+    test_set = EmbeddingsDataset(csv_path=TEST_DATASET_PATH, transform=trans)
+    test_loader = DataLoader(test_set, num_workers=0, pin_memory=True)
+
+    net_params = {
+        'hidden_units': training_args['hidden_units'],
+        'layers_num': training_args['layers_num'],
+        'dropout_prob': training_args['dropout_prob'],
+        'video_embedding_dim': training_args['video_embedding_dim'],
+        'audio_embedding_dim': training_args['audio_embedding_dim']
+    }
+
+    model = Model(
+        net_params,
+        test_set.get_pos_weight,
+        training_args['optimizer'],
+        training_args['loss_type'],
+        training_args['learning_rate'],
+    )
+
+
+    # %% Load network trained parameters
+    model.net.load_state_dict(torch.load(os.path.join(model_dir, 'checkpoint_0.132483.pt'))['state_dict'])
+
+    model.evaluate(test_loader)
+
+
 if __name__ == '__main__':
-    __train__()
+    # __train__()
+    __evaluate__()
