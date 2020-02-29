@@ -59,7 +59,14 @@ In particolare, migliorare l'approvvigionamento delle features per il training (
 ## Pensare ad una strategia di training sensata
 Senza spendere ore e ore per niente
 ## Preparare codice per submission
-Basterà guardare uno dei notebook, ma è una palla al piede perché non ci sarà separazione di codice.
-Però bisogna modificare il codice di inferenza perché l'estrazione di feature da video e audio + inferenza siano operazioni continue.
+1. Basterà guardare uno dei notebook, ma è una palla al piede perché non ci sarà separazione di codice.
+2. Bisogna modificare il codice di inferenza perché l'estrazione di feature da video e audio + inferenza siano operazioni continue.
+3. Attualmente il codice scarta i video che non riesce a processare (per esempio, se non vengono fuori le facce, o così via).
+In tal caso bisogna ricordarne il nome e assegnare loro una probabilità randomica.
+4. Attualmente, ci sono video senza audio. Ho provveduto ad assegnare una matrice di zeri, così che queste tracce audio
+non modifichino l'allenamento.
+5. Alcuni video hanno troppi pochi frame. Durante il cropping, nell'allenamento, l'array di frame viene "paddato" con zeri, alla stessa maniera di cui sopra.
+
+
 ## VINCERE
 
