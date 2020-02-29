@@ -32,7 +32,7 @@ class Model:
         self.val_loss_log = torch.tensor([]).to(device)
         self.test_loss_log = torch.tensor([]).to(device)
 
-        # To restore optimizer's state when evaluating
+        # TODO: To restore optimizer's state when training from previous step we need last epoch. I don't know where to save it
         self.last_epoch = 0
 
     def __build_model(self) -> (torch.Tensor, torch.optim, nn.Module):
@@ -73,7 +73,7 @@ class Model:
         """
         Saves only Torch model parameters. To restore Torch training it is better to see "save"
         Save the state_dict only if you want to continue training from a certain point.
-        It is really heavy and is not useful for inference.
+        It is really heavy since it contains the adaptive lr of Adam and is not useful for inference.
         """
         self.net: nn.Module
         state = {
@@ -85,10 +85,15 @@ class Model:
         torch.save(state, os.path.join(run_path, 'checkpoint_' + str(loss_value) + '.pt'))
 
     def fit(self, epochs: int, train_set: DataLoader, val_set: DataLoader, patience: int = 20, run_name: str = None):
-        self.net: torch.nn.Module
+        self.net: torch.nn.Module  # define type of self.net to ease linting
         early_stopping = EarlyStopping(patience=patience, verbose=False)
+        # This scheduler let the learning rate to decrease each epoch, going from initial lr to the final (1e-7)
+        # In this way, the loss function and the optimizer can speed up training by escaping local minima without
+        # slowing down too much. This let us also keep higher lr values, since it is decreased in different way for
+        # each image - since random provisioning is enabled.
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, len(train_set), 1e-7)
 
+        # Just for portability
         net = self.net
         optimizer = self.optimizer
         loss_fn = self.loss
@@ -99,7 +104,7 @@ class Model:
             conc_losses: torch.Tensor = torch.tensor([]).to(device)
             conc_acc: torch.Tensor = torch.tensor([]).to(device)
 
-            for i, batch in enumerate(train_set):
+            for batch in train_set:
                 net_inputs = (batch['video_embedding'].to(device), batch['audio_embedding'].to(device))
                 # Batch input comes as sparse
                 # Get the labels (the last word of each sequence)
@@ -139,7 +144,7 @@ class Model:
             conc_out: torch.Tensor = torch.tensor([]).to(device)
             conc_label: torch.Tensor = torch.tensor([]).to(device)
             with torch.no_grad():
-                for i, batch in enumerate(val_set):
+                for batch in val_set:
                     net_inputs = (batch['video_embedding'].to(device), batch['audio_embedding'].to(device))
                     # Batch input comes as sparse
                     # Get the labels (the last word of each sequence)
@@ -151,8 +156,8 @@ class Model:
                     conc_out = torch.cat([conc_out, torch.unsqueeze(net_outs.squeeze(), dim=-1)])
                     conc_label = torch.cat([conc_label, torch.unsqueeze(labels, dim=-1)])
 
-                epoch_val_loss = self.loss(conc_out, conc_label)
-                epoch_val_acc = self.acc(conc_out, conc_label).float()
+                epoch_val_loss = loss_fn(conc_out, conc_label)
+                epoch_val_acc = acc_fn(conc_out, conc_label).float()
 
             # if epoch % 1 == 0:
             print("Epoch: {}\ttrain: acc: {:4f} loss: {:.4f}\t\tval: acc: {:.4f} loss: {:.4f}".format(epoch,
@@ -160,24 +165,29 @@ class Model:
                                                                                                       epoch_train_loss,
                                                                                                       epoch_val_acc,
                                                                                                       epoch_val_loss))
-            if epoch % 10 == 0:
-                early_stopping(epoch_val_loss, self.net)
-                if early_stopping.save_checkpoint and run_name:
-                    self.save(run_name, epoch_val_loss.cpu().detach().numpy())
-                if early_stopping.early_stop:
-                    print("Early stopping")
-                    self.last_epoch = epoch
-                    break
+            # Update early stopping. This is really useful to stop training in time.
+            # The if statement is not slowing down training since each epoch last very long.
+            early_stopping(epoch_val_loss, self.net)
+            if early_stopping.save_checkpoint and run_name:
+                self.save(run_name, epoch_val_loss.cpu().detach().numpy())
+            if early_stopping.early_stop:
+                print("Early stopping")
+                self.last_epoch = epoch
+                break
 
     def evaluate(self, test_set: DataLoader):
         self.net: torch.nn.Module
         net = self.net
+        loss_fn = self.loss
+        acc_fn = self.acc
+        # Put network in evaluation mode aka Dropout and BatchNorm are disabled
         net.eval()
         with torch.no_grad():
             conc_out: torch.Tensor = torch.tensor([]).to(device)
             conc_label: torch.Tensor = torch.tensor([]).to(device)
+            # Do not update gradients
             with torch.no_grad():
-                for i, batch in enumerate(test_set):
+                for batch in test_set:
                     net_inputs = (batch['video_embedding'].to(device), batch['audio_embedding'].to(device))
                     # Batch input comes as sparse
                     # Get the labels (the last word of each sequence)
@@ -189,8 +199,8 @@ class Model:
                     conc_out = torch.cat([conc_out, torch.unsqueeze(net_outs.squeeze(), dim=-1)])
                     conc_label = torch.cat([conc_label, torch.unsqueeze(labels, dim=-1)])
 
-                epoch_test_loss = self.loss(conc_out.squeeze(), conc_label.squeeze())
-                epoch_test_acc = self.acc(conc_out.squeeze(), conc_label.squeeze())
+                epoch_test_loss = loss_fn(conc_out.squeeze(), conc_label.squeeze())
+                epoch_test_acc = acc_fn(conc_out.squeeze(), conc_label.squeeze())
 
                 # if epoch % 1 == 0:
                 print("Test:\tacc: {:.4f}\n\t\tloss: {:.4f}".format(epoch_test_acc, epoch_test_loss))
