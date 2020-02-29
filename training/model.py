@@ -45,9 +45,11 @@ class Model:
         dropout_prob = self.__net_params['dropout_prob']
         video_emb_dim = self.__net_params['video_embedding_dim']
         audio_emb_dim = self.__net_params['audio_embedding_dim']
+        fc_dim = self.__net_params['fc_dim']
 
         network: nn.Module = Network(hidden_units,
                                      layers_num,
+                                     fc_dim,
                                      video_emb_dim,
                                      audio_emb_dim,
                                      dropout_prob)
