@@ -10,7 +10,7 @@ import gc
 
 
 class EmbeddingsDataset(Dataset):
-    def __init__(self, csv_path='train_dataset', shuffle=True, transform=None):
+    def __init__(self, csv_path='train_dataset', transform=None):
         # Load data
         # Contains all data. Dict so we speedup reading from memory
         data = pd.read_pickle(csv_path)

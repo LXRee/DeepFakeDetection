@@ -47,7 +47,7 @@ parser.add_argument('--loss_type', type=str, default='BCE', help='Loss type')
 parser.add_argument('--val_size', type=float, default=.3, help='Dimension of validation')
 parser.add_argument('--learning_rate', type=float, default=1e-3, help='Learning rate')
 parser.add_argument('--num_epochs', type=int, default=100000, help='Number of training epochs')
-parser.add_argument('--patience', type=int, default=20, help='Patience to use in EarlyStopping')
+parser.add_argument('--patience', type=int, default=15, help='Patience to use in EarlyStopping')
 
 # Save
 parser.add_argument('--model_dir', type=str, default='exp12', help='Where to load models and params')
@@ -74,9 +74,9 @@ VAL_SIZE = args.val_size
 PATIENCE = args.patience
 
 
-crop_len = [5, 10, 15]
+crop_len = [5, 10, 15, 25]
 hidden_units = [64, 128, 256, 512]
-layers_num = [2, 3, 5]
+layers_num = [2, 3, 5, 8]
 learning_rate = [1e-03]
 dropout_prob = [0.3]
 batch_size = [256]
@@ -107,7 +107,7 @@ def __train__():
                                     crop=CROP_LEN, hid=HIDDEN_UNITS, ln=LAYERS_NUM, lr=LEARNING_RATE, d=DROPOUT_PROB,
                                     b=BATCH_SIZE, fc=FC_DIM
                                 ))
-
+        print("Now training at: \n{}".format(RUN_PATH))
         # overwrite hyper parameters args to save them in the right way
         args.crop_len = CROP_LEN
         args.hidden_units = HIDDEN_UNITS
