@@ -203,3 +203,11 @@ dmypy.json
 .pyre/
 
 # End of https://www.gitignore.io/api/python,pycharm+all
+/dataset/deepfake-detection-challenge/test_videos/
+/dataset/deepfake-detection-challenge/train_sample_videos/
+dataset/deepfake-detection-challenge.zip
+dataset/deepfake-detection-challenge/sample_submission.csv
+venv/bin/
+venv/include/
+venv/lib64
+venv/pyvenv.cfg

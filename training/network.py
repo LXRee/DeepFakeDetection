@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 
-from torch import nn
 import torch
-import torch.nn.functional as F
+from torch import nn
 
 
 class Network(nn.Module):
@@ -22,22 +21,25 @@ class Network(nn.Module):
                            num_layers=layers_num,
                            dropout=dropout_prob,
                            batch_first=True)
+
         # FC layer to let the network decide how much audio will be considered to decide the result
         self.fc = nn.Linear(hidden_units + audio_embedding_dim, 512)
+
         # Define output layer
         self.out = nn.Linear(512, 1)
 
     def forward(self, inputs, state=None):
         # LSTM for video information
         x, rnn_state = self.rnn(inputs[0], state)
-        # concatenating audio information
-        # we want to consider only the last time step for video since we want to understand what
-        # the lstm has seen.
+
+        # Concatenating audio information we want to consider only the last time step
+        # for video since we want to understand what the LSTM has seen
         x = self.fc(torch.cat([x[:, -1, :], inputs[1]], dim=1))
+
         # Linear layer
         x = self.out(x)
-        return x, rnn_state
 
+        return x, rnn_state
 
 # def train_batch(net, batch, loss_fn, optimizer, acc_fn):
 #     # batch input comes as sparse

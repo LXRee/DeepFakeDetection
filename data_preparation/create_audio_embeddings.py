@@ -1,12 +1,14 @@
 import os
+
 import librosa
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import pandas as pd
-from source.data_preparation.helper.make_chunks import list_chunks
 from tqdm import tqdm
+
+from data_preparation.helper.make_chunks import list_chunks
 
 # device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 device = 'cpu'
@@ -16,10 +18,11 @@ print(f'Running on device: {device}')
 def load_audio_mfcc(audio_path):
     wave, sr = librosa.load(audio_path, mono=True)
     mfcc = librosa.feature.mfcc(wave, sr)
-    if mfcc.shape[1] > 400:
-        mfcc = mfcc[:, :400]
-    else:
-        mfcc = np.pad(mfcc, ((0, 0), (0, 400 - len(mfcc[0]))), mode='constant', constant_values=0)
+    mfcc = mfcc[:, :400] if mfcc.shape[1] > 400 else np.pad(mfcc,
+                                                            ((0, 0),
+                                                             (0, 400 - len(mfcc[0]))),
+                                                            mode='constant',
+                                                            constant_values=0)
     return mfcc
 
 
@@ -39,8 +42,9 @@ class MASRCNN_activate(nn.Module):
                 convnet_7.append(nn.Conv1d(in_channels=embedding_dim, out_channels=init_neurons, kernel_size=7))
                 convnet_7.append(nn.LeakyReLU(0.2))
             elif ly == 1:
-                convnet_3.append(
-                    nn.Conv1d(in_channels=init_neurons, out_channels=init_neurons * (ly * 2), kernel_size=3))
+                convnet_3.append(nn.Conv1d(in_channels=init_neurons,
+                                           out_channels=init_neurons * (ly * 2),
+                                           kernel_size=3))
                 convnet_3.append(nn.LeakyReLU(0.2))
                 convnet_5.append(
                     nn.Conv1d(in_channels=init_neurons, out_channels=init_neurons * (ly * 2), kernel_size=5))
@@ -50,17 +54,19 @@ class MASRCNN_activate(nn.Module):
                 convnet_7.append(nn.LeakyReLU(0.2))
             else:
                 convnet_3.append(
-                    nn.Conv1d(in_channels=init_neurons * ((ly - 1) * 2), out_channels=init_neurons * (ly * 2),
+                    nn.Conv1d(in_channels=init_neurons * ((ly - 1) * 2),
+                              out_channels=init_neurons * (ly * 2),
                               kernel_size=3))
                 convnet_3.append(nn.LeakyReLU(0.2))
-                convnet_5.append(
-                    nn.Conv1d(in_channels=init_neurons * ((ly - 1) * 2), out_channels=init_neurons * (ly * 2),
-                              kernel_size=5))
+                convnet_5.append(nn.Conv1d(in_channels=init_neurons * ((ly - 1) * 2),
+                                           out_channels=init_neurons * (ly * 2),
+                                           kernel_size=5))
                 convnet_5.append(nn.LeakyReLU(0.2))
-                convnet_7.append(
-                    nn.Conv1d(in_channels=init_neurons * ((ly - 1) * 2), out_channels=init_neurons * (ly * 2),
-                              kernel_size=7))
+                convnet_7.append(nn.Conv1d(in_channels=init_neurons * ((ly - 1) * 2),
+                                           out_channels=init_neurons * (ly * 2),
+                                           kernel_size=7))
                 convnet_7.append(nn.LeakyReLU(0.2))
+
         self.conv_blocks_3 = nn.Sequential(*convnet_3)
         self.conv_blocks_5 = nn.Sequential(*convnet_5)
         self.conv_blocks_7 = nn.Sequential(*convnet_7)
@@ -68,8 +74,7 @@ class MASRCNN_activate(nn.Module):
         self.maxpool = nn.AdaptiveMaxPool1d(1)
         self.dense = nn.Sequential(nn.Linear(448 * 3, num_dense_neurons),
                                    nn.BatchNorm1d(num_dense_neurons),
-                                   nn.LeakyReLU(0.2)
-                                   )
+                                   nn.LeakyReLU(0.2))
         self.fc = nn.Linear(50, num_classes)
 
     def forward(self, x):
@@ -84,7 +89,7 @@ class MASRCNN_activate(nn.Module):
         x = self.dense(x)
         x = F.dropout(x, p=0.5, training=self.training)
         # x = self.fc(x)
-        # skip last fc layer in order to retrieve logits
+        # Skip last fc layer in order to retrieve logits
         return x
 
 
@@ -104,18 +109,20 @@ def load_weights(model, checkpoint_path, multi_gpu=False):
 
 def prepare_model(ckp_path, device):
     # checkpoint_path = "/kaggle/input/audio-model/ASRCNN_27000.pth"
-    audio_model = MASRCNN_activate(max_sent_len=400, embedding_dim=20, num_conv_blocks=8, init_neurons=32)
-    audio_model = load_weights(audio_model, ckp_path)
-    audio_model = audio_model.to(device)
+    audio_model = load_weights(MASRCNN_activate(max_sent_len=400,
+                                                embedding_dim=20,
+                                                num_conv_blocks=8,
+                                                init_neurons=32),
+                               ckp_path).to(device)
     audio_model.eval()
     return audio_model
 
 
 def predict_on_audio(batch_audio_path, audio_model, batch_n):
     """
-
-    :param audio_path:
+    :param batch_audio_path:
     :param audio_model:
+    :param batch_n:
     :return: logits features from audio
     """
     mfccs = []
@@ -139,31 +146,29 @@ if __name__ == '__main__':
     input_dir = 'test_audio'
     output_dir = ''
     audio_paths = []
+
+    # Prepare list of paths to audio
     for root, dirs, files in os.walk(input_dir):
-        # prepare list of paths to audio
         audio_paths.extend([os.path.join(root, file) for file in files])
 
     BATCH_DIM = 64
-    # prepare batches for inference - to speedup training
+    # Prepare batches for inference - to speedup training
     batch_audio_paths = list(list_chunks(audio_paths, BATCH_DIM))
     print("{} batches of {} length".format(len(batch_audio_paths), BATCH_DIM))
-    # prepare model
+    # Prepare model
     checkpoint_path = 'source/data_preparation/checkpoints/ASRCNN_27000.pth'
 
     audio_model = prepare_model(checkpoint_path, device)
 
-    # create dataframe to store audio logits
+    # Create dataframe to store audio logits
     df = pd.DataFrame(columns=['filename', 'audio_embedding'])
 
-    # general counter for dataframe
+    # General counter for dataframe
     i = 0
     for j, batch in enumerate(batch_audio_paths):
         output_logits = predict_on_audio(batch, audio_model, j)
         for filename, output_logit in zip(batch, output_logits):
-            row = [
-                os.path.basename(filename).split('.')[0],
-                output_logit
-            ]
+            row = [os.path.basename(filename).split('.')[0], output_logit]
             df.loc[i] = row
             i += 1
 

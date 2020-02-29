@@ -1,7 +1,8 @@
-import subprocess
-import os
 import multiprocessing as mp
-from make_chunks import list_chunks
+import os
+import subprocess
+
+from data_preparation.helper.make_chunks import list_chunks
 
 
 def extract_audio_from_paths(in_paths, dest_path):
@@ -17,9 +18,10 @@ def extract_audio_from_paths(in_paths, dest_path):
 def extract_audio_from_source(input_path, dest_path):
     paths = []
     for root, dirs, files in os.walk(input_path):
-        # retrieve all paths in input_path folder
+        # Retrieve all paths in input_path folder
         paths.extend([os.path.join(root, file) for file in files])
-    # needed for multiprocessing
+
+    # Needed for multiprocessing
     paths = list(paths)
     processors = 6
     pool = mp.Pool(processes=processors)

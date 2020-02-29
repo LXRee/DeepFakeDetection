@@ -1,14 +1,10 @@
 # -*- coding: utf-8 -*-
 
-import torch
 import numpy as np
-from torch.utils.data import Dataset, DataLoader
-from functools import reduce
-from torchvision import transforms
-from typing import List, Dict, Tuple
-import json
 import pandas as pd
-import os
+import torch
+from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms
 
 
 class EmbeddingsDataset(Dataset):
@@ -22,8 +18,7 @@ class EmbeddingsDataset(Dataset):
         # self.__path_list = path_list
         data = pd.read_pickle(csv_path)
 
-
-        # keep locations indexes to better manage the files
+        # Keep locations indexes to better manage the files
         # self.__locs = np.linspace(0, data.shape[0] - 1, data.shape[0], dtype='uint32')
         self.__video_embeddings = list(data['video_embedding'])
         self.__audio_embeddings = list(data['audio_embedding'])
@@ -56,17 +51,17 @@ class EmbeddingsDataset(Dataset):
         # df = self.reader(path_to_csv)
 
         # Create sample
-        sample = {'video_embedding': self.__video_embeddings[idx],
-                  'audio_embedding': self.__audio_embeddings[idx],
-                  'label': self.__labels[idx]
-                  }
+        sample = {
+            'video_embedding': self.__video_embeddings[idx],
+            'audio_embedding': self.__audio_embeddings[idx],
+            'label': self.__labels[idx]
+        }
         # sample = {'video_embedding': df['video_embedding'].loc[0],
         #           'audio_embedding': df['audio_embedding'].loc[0],
         #           'label': df['label'].loc[0]}
         # Transform (if defined)
-        if self.transform:
-            sample = self.transform(sample)
-        return sample
+
+        return self.transform(sample) if self.transform else sample
 
 
 class RandomCrop:
@@ -82,12 +77,11 @@ class RandomCrop:
             cropped_embedding = np.zeros((self.crop_len, video_embedding.shape[1]), dtype='float32')
             cropped_embedding[0:tot_frames, ...] = video_embedding
         else:
-            start_idx = int(np.random.random()*(tot_frames - self.crop_len))
+            start_idx = int(np.random.random() * (tot_frames - self.crop_len))
             end_idx = start_idx + self.crop_len
             cropped_embedding = video_embedding[start_idx:end_idx, ...]
-        return {**sample,
-                'video_embedding': cropped_embedding
-                }
+
+        return {**sample, 'video_embedding': cropped_embedding}
 
 
 class ToTensor:
@@ -100,9 +94,10 @@ class ToTensor:
 
 class LabelOneHot:
     def __init__(self):
-        self.l = {0: np.array([0, 1], dtype='uint8'),
-                  1: np.array([1, 0], dtype='uint8')
-                  }
+        self.l = {
+            0: np.array([0, 1], dtype='uint8'),
+            1: np.array([1, 0], dtype='uint8')
+        }
 
     def __call__(self, sample):
         return {**sample, 'label': self.l[sample['label']]}
@@ -110,43 +105,37 @@ class LabelOneHot:
 
 if __name__ == '__main__':
 
-    # %% Initialize dataset
+    # Initialize dataset
     dataset = EmbeddingsDataset('audio_video_embeddings.csv')
 
-    # %% Test sampling
+    # Test sampling
     sample = dataset[0]
 
-    print('##############')
-    print('##############')
-    print('EMBEDDING')
-    print('##############')
+    print('-----------------')
+    print('--- EMBEDDING ---')
+    print('-----------------')
     print(sample['embedding'])
 
-    print('##############')
-    print('##############')
-    print('LABEL')
-    print('##############')
+    print('-----------------')
+    print('----- LABEL -----')
+    print('-----------------')
     print(sample['label'])
 
-    # %% Test RandomCrop
+    # Test RandomCrop
     crop_len = 20
     rc = RandomCrop(crop_len)
     sample = rc(sample)
 
-    # %% Test ToTensor
+    # Test ToTensor
     tt = ToTensor()
     sample = tt(sample)
 
-    # %% Test dataloader
+    # Test dataloader
     crop_len = 10
     trans = transforms.Compose([RandomCrop(crop_len),
                                 ToTensor()
                                 ])
-    dataset = EmbeddingsDataset(
-        'audio_video_embeddings.csv',
-        transform=trans
-    )
-
+    dataset = EmbeddingsDataset('audio_video_embeddings.csv', transform=trans)
     dataloader = DataLoader(dataset, batch_size=2, shuffle=True)
 
     for batch_sample in dataloader:

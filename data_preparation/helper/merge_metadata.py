@@ -1,10 +1,12 @@
-import os, json
+import json
+import os
+
 from tqdm import tqdm
 
-# merge all metadata.json from dataset splits
+""" Merge all metadata.json from dataset splits """
 
 if __name__ == '__main__':
-    # read all metadata.json from each folder
+    # Read all metadata.json from each folder
     metadata_list = {}
     splits_folder = os.path.join('data')
     for root, dirs, files in tqdm(os.walk(splits_folder), desc="Reading metadata"):
@@ -14,7 +16,7 @@ if __name__ == '__main__':
                 metadata_path = os.path.join(root, file)
         metadata_list[metadata_path] = root
 
-    # create new json with path to each image.
+    # Create new json with path to each image.
     all_meta = {}
     for metadata_path, root_dir in tqdm(metadata_list.items(), desc='Writing metadata'):
         if metadata_path is not '':

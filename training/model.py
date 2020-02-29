@@ -1,12 +1,12 @@
+import os
+from typing import Dict, Union
+
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
-from typing import Dict, Union
-import os
-
-from source.training.network import Network
-from source.training.pytorchtools import EarlyStopping, Accuracy
+from training.network import Network
+from training.pytorchtools import EarlyStopping, Accuracy
 
 use_cuda = torch.cuda.is_available()
 device = torch.device("cuda:0" if use_cuda else "cpu")
@@ -18,8 +18,8 @@ class Model:
                  pos_weights,
                  optimizer: str = "adam",
                  loss: str = "crossentropy",
-                 lr: float = .1,
-                 ):
+                 lr: float = .1):
+
         self.__net_params = net_params
         self.__optimizer_type = optimizer
         self.__loss_type = loss
@@ -32,30 +32,29 @@ class Model:
         self.val_loss_log = torch.tensor([]).to(device)
         self.test_loss_log = torch.tensor([]).to(device)
 
-        # to restore optimizer's state when evaluating
+        # To restore optimizer's state when evaluating
         self.last_epoch = 0
 
     def __build_model(self) -> (torch.Tensor, torch.optim, nn.Module):
         """
-        Metorchod to build torche network, torche loss and its optimizer.
-        Return: loss, optimizer, network
+        Build Torch network, loss and its optimizer.
+        @:return loss, optimizer, network
         """
-        hidden_units, layers_num, dropout_prob, video_emb_dim, audio_emb_dim = self.__net_params['hidden_units'], \
-                                                                               self.__net_params['layers_num'], \
-                                                                               self.__net_params['dropout_prob'], \
-                                                                               self.__net_params['video_embedding_dim'], \
-                                                                               self.__net_params['audio_embedding_dim']
-        network: nn.Module = Network(
-            hidden_units,
-            layers_num,
-            video_emb_dim,
-            audio_emb_dim,
-            dropout_prob
-        )
+        hidden_units = self.__net_params['hidden_units']
+        layers_num = self.__net_params['layers_num']
+        dropout_prob = self.__net_params['dropout_prob']
+        video_emb_dim = self.__net_params['video_embedding_dim']
+        audio_emb_dim = self.__net_params['audio_embedding_dim']
 
-        # send network to torche right device
+        network: nn.Module = Network(hidden_units,
+                                     layers_num,
+                                     video_emb_dim,
+                                     audio_emb_dim,
+                                     dropout_prob)
+
         network.to(device)
         acc_fn = Accuracy()
+
         if self.__loss_type == "BCE":
             loss_fn = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(self.__pos_weights).double())
         else:
@@ -72,14 +71,14 @@ class Model:
 
     def save(self, run_path: str = "exp0", loss_value: float = 10):
         """
-        Saves only torche model parameters. To restore torche training it is better to see "save"
+        Saves only Torch model parameters. To restore Torch training it is better to see "save"
+        Save the state_dict only if you want to continue training from a certain point.
+        It is really heavy and is not useful for inference.
         """
         self.net: nn.Module
         state = {
             'epoch': self.last_epoch + 1,
             'state_dict': self.net.state_dict(),
-            # # save only if you want to continue training from a certain point. It is really heavy and is not
-            # # useful for inference.
             # 'optim_dict': self.optimizer.state_dict()
         }
         self.net: nn.Module
@@ -89,6 +88,7 @@ class Model:
         self.net: torch.nn.Module
         early_stopping = EarlyStopping(patience=patience, verbose=False)
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, len(train_set), 1e-7)
+
         net = self.net
         optimizer = self.optimizer
         loss_fn = self.loss
@@ -101,48 +101,56 @@ class Model:
 
             for i, batch in enumerate(train_set):
                 net_inputs = (batch['video_embedding'].to(device), batch['audio_embedding'].to(device))
-                # batch input comes as sparse
+                # Batch input comes as sparse
                 # Get the labels (the last word of each sequence)
                 labels = batch['label'].to(device)
+
                 # Forward pass
                 net_outs, _ = net(net_inputs)
+
                 # Update network
                 loss = loss_fn(net_outs.squeeze(), labels)
                 acc = acc_fn(net_outs.squeeze(), labels)
 
                 # Eventually clear previous recorded gradients
                 optimizer.zero_grad()
+
                 # Backward pass
                 loss.backward()
-                # clip gradients to avoid gradient explosion
+
+                # Clip gradients to avoid gradient explosion
                 # torch.nn.utils.clip_grad_norm_(net.parameters(), 1.0)
+
                 # Update
                 optimizer.step()
-                # return loss.data, acc
+
+                # Return loss.data, acc
                 # scheduler.step(epoch)
                 conc_losses = torch.cat([conc_losses, torch.unsqueeze(loss, dim=-1)])
                 conc_acc = torch.cat([conc_acc, torch.unsqueeze(acc, dim=-1)])
-            # update scheduler outside batch loop
+
+            # Update scheduler outside batch loop
             scheduler.step(epoch)
             epoch_train_loss = torch.mean(conc_losses)
             epoch_train_acc = torch.mean(conc_acc)
 
-            # validation
+            # Validation
             net.eval()
             conc_out: torch.Tensor = torch.tensor([]).to(device)
             conc_label: torch.Tensor = torch.tensor([]).to(device)
             with torch.no_grad():
                 for i, batch in enumerate(val_set):
                     net_inputs = (batch['video_embedding'].to(device), batch['audio_embedding'].to(device))
-                    # batch input comes as sparse
+                    # Batch input comes as sparse
                     # Get the labels (the last word of each sequence)
                     labels = batch['label'].to(device)
 
-                    # evaluate the network over the input
+                    # Evaluate the network over the input
                     net_outs, _ = net(net_inputs)
 
                     conc_out = torch.cat([conc_out, torch.unsqueeze(net_outs.squeeze(), dim=-1)])
                     conc_label = torch.cat([conc_label, torch.unsqueeze(labels, dim=-1)])
+
                 epoch_val_loss = self.loss(conc_out, conc_label)
                 epoch_val_acc = self.acc(conc_out, conc_label).float()
 
@@ -152,7 +160,6 @@ class Model:
                                                                                                       epoch_train_loss,
                                                                                                       epoch_val_acc,
                                                                                                       epoch_val_loss))
-
             if epoch % 10 == 0:
                 early_stopping(epoch_val_loss, self.net)
                 if early_stopping.save_checkpoint and run_name:
@@ -172,18 +179,18 @@ class Model:
             with torch.no_grad():
                 for i, batch in enumerate(test_set):
                     net_inputs = (batch['video_embedding'].to(device), batch['audio_embedding'].to(device))
-                    # batch input comes as sparse
+                    # Batch input comes as sparse
                     # Get the labels (the last word of each sequence)
                     labels = batch['label'].to(device)
 
-                    # evaluate the network over the input
+                    # Evaluate the network over the input
                     net_outs, _ = net(net_inputs)
 
                     conc_out = torch.cat([conc_out, torch.unsqueeze(net_outs.squeeze(), dim=-1)])
                     conc_label = torch.cat([conc_label, torch.unsqueeze(labels, dim=-1)])
+
                 epoch_test_loss = self.loss(conc_out.squeeze(), conc_label.squeeze())
                 epoch_test_acc = self.acc(conc_out.squeeze(), conc_label.squeeze())
 
                 # if epoch % 1 == 0:
-                print("Test:\tacc: {:.4f}\n\t\tloss: {:.4f}".format(epoch_test_acc,
-                                                              epoch_test_loss))
+                print("Test:\tacc: {:.4f}\n\t\tloss: {:.4f}".format(epoch_test_acc, epoch_test_loss))
