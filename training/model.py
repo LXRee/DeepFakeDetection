@@ -82,7 +82,8 @@ class Model:
             # 'optim_dict': self.optimizer.state_dict()
         }
         self.net: nn.Module
-        torch.save(state, os.path.join(run_path, 'checkpoint_' + str(loss_value) + '.pt'))
+        filepath = os.path.join(run_path, 'checkpoint_' + str(loss_value) + '.pt')
+        torch.save(state, filepath)
 
     def fit(self, epochs: int, train_set: DataLoader, val_set: DataLoader, patience: int = 20, run_name: str = None):
         self.net: torch.nn.Module  # define type of self.net to ease linting
@@ -99,15 +100,20 @@ class Model:
         loss_fn = self.loss
         acc_fn = self.acc
 
+        start_whole = torch.cuda.Event(enable_timing=True)
+        end_whole = torch.cuda.Event(enable_timing=True)
+        start_epoch = torch.cuda.Event(enable_timing=True)
+        end_epoch = torch.cuda.Event(enable_timing=True)
+
+        start_whole.record()
         for epoch in range(epochs):
+            start_epoch.record()
             net.train()
             conc_losses: torch.Tensor = torch.tensor([]).to(device)
             conc_acc: torch.Tensor = torch.tensor([]).to(device)
 
             for batch in train_set:
                 net_inputs = (batch['video_embedding'].to(device), batch['audio_embedding'].to(device))
-                # Batch input comes as sparse
-                # Get the labels (the last word of each sequence)
                 labels = batch['label'].to(device)
 
                 # Forward pass
@@ -129,8 +135,7 @@ class Model:
                 # Update
                 optimizer.step()
 
-                # Return loss.data, acc
-                # scheduler.step(epoch)
+                # Return loss, acc
                 conc_losses = torch.cat([conc_losses, torch.unsqueeze(loss, dim=-1)])
                 conc_acc = torch.cat([conc_acc, torch.unsqueeze(acc, dim=-1)])
 
@@ -146,8 +151,6 @@ class Model:
             with torch.no_grad():
                 for batch in val_set:
                     net_inputs = (batch['video_embedding'].to(device), batch['audio_embedding'].to(device))
-                    # Batch input comes as sparse
-                    # Get the labels (the last word of each sequence)
                     labels = batch['label'].to(device)
 
                     # Evaluate the network over the input
@@ -159,12 +162,15 @@ class Model:
                 epoch_val_loss = loss_fn(conc_out, conc_label)
                 epoch_val_acc = acc_fn(conc_out, conc_label).float()
 
-            # if epoch % 1 == 0:
-            print("Epoch: {}\ttrain: acc: {:4f} loss: {:.4f}\t\tval: acc: {:.4f} loss: {:.4f}".format(epoch,
-                                                                                                      epoch_train_acc,
-                                                                                                      epoch_train_loss,
-                                                                                                      epoch_val_acc,
-                                                                                                      epoch_val_loss))
+            end_epoch.record()
+            torch.cuda.synchronize(device)
+            print(
+                "Epoch: {}\ttrain: acc: {:4f} loss: {:.4f}\t\tval: acc: {:.4f} loss: {:.4f}\ttime: {:.4}s".format(epoch,
+                                                                                                                  epoch_train_acc,
+                                                                                                                  epoch_train_loss,
+                                                                                                                  epoch_val_acc,
+                                                                                                                  epoch_val_loss,
+                                                                                                                  start_epoch.elapsed_time(end_epoch)/1000))
             # Update early stopping. This is really useful to stop training in time.
             # The if statement is not slowing down training since each epoch last very long.
             early_stopping(epoch_val_loss, self.net)
@@ -174,6 +180,9 @@ class Model:
                 print("Early stopping")
                 self.last_epoch = epoch
                 break
+        end_whole.record()
+        torch.cuda.synchronize(device)
+        print("Elapsed time: {:.4f}s".format(start_whole.elapsed_time(end_whole)/1000))
 
     def evaluate(self, test_set: DataLoader):
         self.net: torch.nn.Module
@@ -189,8 +198,6 @@ class Model:
             with torch.no_grad():
                 for batch in test_set:
                     net_inputs = (batch['video_embedding'].to(device), batch['audio_embedding'].to(device))
-                    # Batch input comes as sparse
-                    # Get the labels (the last word of each sequence)
                     labels = batch['label'].to(device)
 
                     # Evaluate the network over the input
@@ -202,5 +209,4 @@ class Model:
                 epoch_test_loss = loss_fn(conc_out.squeeze(), conc_label.squeeze())
                 epoch_test_acc = acc_fn(conc_out.squeeze(), conc_label.squeeze())
 
-                # if epoch % 1 == 0:
                 print("Test:\tacc: {:.4f}\n\t\tloss: {:.4f}".format(epoch_test_acc, epoch_test_loss))

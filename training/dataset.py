@@ -2,28 +2,26 @@
 
 import numpy as np
 import pandas as pd
+import h5py
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
+import gc
 
 
 class EmbeddingsDataset(Dataset):
     def __init__(self, csv_path='train_dataset', shuffle=True, transform=None):
         # Load data
-        # contains all data with indexes, which are accessed by df['embedding'].loc[int]
-        # or df['label'].loc[int] method
-        # path_list = []
-        # for root, dirs, files in os.walk(csv_path):
-        #     path_list.extend([os.path.join(root, file) for file in files])
-        # self.__path_list = path_list
+        # Contains all data. Dict so we speedup reading from memory
         data = pd.read_pickle(csv_path)
+        self.__data = {key: [values[0], values[1], values[2], values[3]] for key, values in enumerate(zip(data['filename'], data['video_embedding'], data['audio_embedding'], data['label']))}
 
-        # Keep locations indexes to better manage the files
-        # self.__locs = np.linspace(0, data.shape[0] - 1, data.shape[0], dtype='uint32')
-        self.__video_embeddings = list(data['video_embedding'])
-        self.__audio_embeddings = list(data['audio_embedding'])
-        self.__labels = np.array(data['label'])
-        del data
+        # impose garbage collector to take away the data
+        data = None
+        gc.collect()
+
+        # Code for h5py version
+        # self.path = csv_path
 
         # if shuffle:
         #     np.random.shuffle(self.__locs)
@@ -32,7 +30,6 @@ class EmbeddingsDataset(Dataset):
         # https://pytorch.org/docs/stable/nn.html#torch.nn.BCEWithLogitsLoss
         # self.__pos_weight = (self.__labels.shape[0] - pos_labels) / pos_labels
         self.__pos_weight = 1.
-        # self.reader = pd.read_pickle
 
         self.transform = transform
 
@@ -41,26 +38,26 @@ class EmbeddingsDataset(Dataset):
         return self.__pos_weight
 
     def __len__(self):
-        return self.__labels.shape[0]
-        # return len(self.__path_list)
+        return len(self.__data.keys())
+        # Code for h5py version
+        # return 119154
 
     def __getitem__(self, idx):
-        # Get data at index
-        # index = self.__locs[idx]
-        # path_to_csv = self.__path_list[idx]
-        # df = self.reader(path_to_csv)
-
         # Create sample
+        # Code for h5py version
+        # with h5py.File(self.path, mode='r') as f:
+        #     sample = {
+        #         'video_embedding': f['video_embedding'][idx].reshape((-1, 512)),
+        #         'audio_embedding': f['audio_embedding'][idx],
+        #         'label': f['label'][idx]
+        #     }
         sample = {
-            'video_embedding': self.__video_embeddings[idx],
-            'audio_embedding': self.__audio_embeddings[idx],
-            'label': self.__labels[idx]
+                'video_embedding': self.__data[idx][1],
+                'audio_embedding': self.__data[idx][2],
+                'label': self.__data[idx][3]
         }
-        # sample = {'video_embedding': df['video_embedding'].loc[0],
-        #           'audio_embedding': df['audio_embedding'].loc[0],
-        #           'label': df['label'].loc[0]}
-        # Transform (if defined)
 
+        # Transform (if defined)
         return self.transform(sample) if self.transform else sample
 
 
