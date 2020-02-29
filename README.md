@@ -9,6 +9,7 @@ La secondaria è che sicuramente tanto vale usare lavoro già fatto. Per questo 
 più tardi.
 
 Mi sono ampiamente ispirato ai seguenti notebook, mentre l'idea della LSTM è originale:
+
 **Data preparation**: https://www.kaggle.com/phunghieu/deepfake-detection-data-preparation-baseline
 
 **Training**: https://www.kaggle.com/phunghieu/deepfake-detection-training-baseline
@@ -38,7 +39,8 @@ Si veda il file `merge_embeddings`.
 5. **Rete**
 La rete da me costruita quindi prende in pasto un numero `RANDOM_CROP` di frame che vengono passati da una `LSTM`.
 Le feature estratte dall'ultimo timestep di quest'ultima vengono concatenate in un unico layer FC assieme a quelle 
-dell'audio. Da qui vanno all'output (di dimensione 1). Si veda il file `network.py`.
+dell'audio. Da qui vanno all'output (di dimensione 1). Quindi, in definitiva, il penultimo layer FC si occupa di capire
+quale tra audio e video siano falsi. Si veda il file `network.py`.
 6. **Allenamento**
 La rete viene allenata con normale backpropagation. La loss è la `BCEWithLogitsLoss`, che unisce la binary crossentropy
 all'operazione `sigmoid` sull'input, che garantisce una maggiore stabilità numerica. Questa misura equivale alla log-loss
@@ -57,7 +59,7 @@ In particolare, migliorare l'approvvigionamento delle features per il training (
 ## Pensare ad una strategia di training sensata
 Senza spendere ore e ore per niente
 ## Preparare codice per submission
-Basterà guardare uno dei notebbok, ma è una palla al piede perché non ci sarà separazione di codice.
+Basterà guardare uno dei notebook, ma è una palla al piede perché non ci sarà separazione di codice.
 Però bisogna modificare il codice di inferenza perché l'estrazione di feature da video e audio + inferenza siano operazioni continue.
 ## VINCERE
 
