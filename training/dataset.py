@@ -52,6 +52,7 @@ class EmbeddingsDataset(Dataset):
         #         'label': f['label'][idx]
         #     }
         sample = {
+                'filename': self.__data[idx][0],
                 'video_embedding': self.__data[idx][1],
                 'audio_embedding': self.__data[idx][2],
                 'label': self.__data[idx][3]
