@@ -5,8 +5,8 @@ che deve recuperare per ogni indice è veramente poca. Quindi è preferibile rim
 """
 
 import h5py
-import pandas as pd
 import numpy as np
+import pandas as pd
 from tqdm import tqdm
 
 

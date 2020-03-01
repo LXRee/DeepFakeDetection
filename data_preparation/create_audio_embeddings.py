@@ -46,17 +46,18 @@ class MASRCNN_activate(nn.Module):
                                            out_channels=init_neurons * (ly * 2),
                                            kernel_size=3))
                 convnet_3.append(nn.LeakyReLU(0.2))
-                convnet_5.append(
-                    nn.Conv1d(in_channels=init_neurons, out_channels=init_neurons * (ly * 2), kernel_size=5))
+                convnet_5.append(nn.Conv1d(in_channels=init_neurons,
+                                           out_channels=init_neurons * (ly * 2),
+                                           kernel_size=5))
                 convnet_5.append(nn.LeakyReLU(0.2))
-                convnet_7.append(
-                    nn.Conv1d(in_channels=init_neurons, out_channels=init_neurons * (ly * 2), kernel_size=7))
+                convnet_7.append(nn.Conv1d(in_channels=init_neurons,
+                                           out_channels=init_neurons * (ly * 2),
+                                           kernel_size=7))
                 convnet_7.append(nn.LeakyReLU(0.2))
             else:
-                convnet_3.append(
-                    nn.Conv1d(in_channels=init_neurons * ((ly - 1) * 2),
-                              out_channels=init_neurons * (ly * 2),
-                              kernel_size=3))
+                convnet_3.append(nn.Conv1d(in_channels=init_neurons * ((ly - 1) * 2),
+                                           out_channels=init_neurons * (ly * 2),
+                                           kernel_size=3))
                 convnet_3.append(nn.LeakyReLU(0.2))
                 convnet_5.append(nn.Conv1d(in_channels=init_neurons * ((ly - 1) * 2),
                                            out_channels=init_neurons * (ly * 2),

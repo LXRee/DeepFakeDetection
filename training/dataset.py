@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 
+import gc
+
 import numpy as np
 import pandas as pd
-import h5py
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
-import gc
 
 
 class EmbeddingsDataset(Dataset):
@@ -14,9 +14,10 @@ class EmbeddingsDataset(Dataset):
         # Load data
         # Contains all data. Dict so we speedup reading from memory
         data = pd.read_pickle(csv_path)
-        self.__data = {key: [values[0], values[1], values[2], values[3]] for key, values in enumerate(zip(data['filename'], data['video_embedding'], data['audio_embedding'], data['label']))}
+        self.__data = {key: [values[0], values[1], values[2], values[3]] for key, values in enumerate(
+            zip(data['filename'], data['video_embedding'], data['audio_embedding'], data['label']))}
 
-        # impose garbage collector to take away the data
+        # Force garbage collector to get rid of the data
         data = None
         gc.collect()
 
@@ -52,9 +53,9 @@ class EmbeddingsDataset(Dataset):
         #         'label': f['label'][idx]
         #     }
         sample = {
-                'video_embedding': self.__data[idx][1],
-                'audio_embedding': self.__data[idx][2],
-                'label': self.__data[idx][3]
+            'video_embedding': self.__data[idx][1],
+            'audio_embedding': self.__data[idx][2],
+            'label': self.__data[idx][3]
         }
 
         # Transform (if defined)
