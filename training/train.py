@@ -73,7 +73,6 @@ LOSS_TYPE = args.loss_type
 VAL_SIZE = args.val_size
 PATIENCE = args.patience
 
-
 crop_len = [5, 10, 15, 25]
 hidden_units = [128, 256, 512]
 layers_num = [2, 3, 5]
@@ -86,31 +85,35 @@ fc_dim = [256, 512, 784]
 def clean_folder(folder):
     min_loss = 100
     for file in os.listdir(folder):
-            if 'checkpoint' in file:
-                filename = file.split('.')[0] + '.' + file.split('.')[1]
-                loss_value = filename.split('_')[1]
-                loss_value = float(loss_value)
-                if loss_value < min_loss:
-                    min_loss = loss_value
-                else:
-                    os.remove(os.path.join(folder, file))
+        if 'checkpoint' in file:
+            filename = file.split('.')[0] + '.' + file.split('.')[1]
+            loss_value = filename.split('_')[1]
+            loss_value = float(loss_value)
+            if loss_value < min_loss:
+                min_loss = loss_value
+            else:
+                os.remove(os.path.join(folder, file))
 
 
 def __train__():
     dataset = EmbeddingsDataset(csv_path=TRAIN_DATASET_PATH)
 
     for CROP_LEN, HIDDEN_UNITS, LAYERS_NUM, LEARNING_RATE, DROPOUT_PROB, BATCH_SIZE, FC_DIM in product(
-        crop_len, hidden_units, layers_num, learning_rate, dropout_prob, batch_size, fc_dim
+            crop_len, hidden_units, layers_num, learning_rate, dropout_prob, batch_size, fc_dim
     ):
         # initialize CUDA state at every iteration
         torch.cuda.empty_cache()
         torch.cuda.init()
 
         RUN_PATH = os.path.join('source', 'training', 'experiments',
-                                'crop{crop}_hid{hid}_ln{ln}_lr{lr}_fc{fc}_batch{b}_drop{d}'.format(
-                                    crop=CROP_LEN, hid=HIDDEN_UNITS, ln=LAYERS_NUM, lr=LEARNING_RATE, d=DROPOUT_PROB,
-                                    b=BATCH_SIZE, fc=FC_DIM
-                                ))
+                                'crop{crop}_hid{hid}_ln{ln}_lr{lr}_fc{fc}_batch{b}_drop{d}'
+                                .format(crop=CROP_LEN,
+                                        hid=HIDDEN_UNITS,
+                                        ln=LAYERS_NUM,
+                                        lr=LEARNING_RATE,
+                                        d=DROPOUT_PROB,
+                                        b=BATCH_SIZE,
+                                        fc=FC_DIM))
         print("Now training at: \n{}".format(RUN_PATH))
         # overwrite hyper parameters args to save them in the right way
         args.crop_len = CROP_LEN

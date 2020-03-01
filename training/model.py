@@ -172,7 +172,8 @@ class Model:
                                                                                                                   epoch_train_loss,
                                                                                                                   epoch_val_acc,
                                                                                                                   epoch_val_loss,
-                                                                                                                  start_epoch.elapsed_time(end_epoch)/1000))
+                                                                                                                  start_epoch.elapsed_time(
+                                                                                                                      end_epoch) / 1000))
             # Update early stopping. This is really useful to stop training in time.
             # The if statement is not slowing down training since each epoch last very long.
             early_stopping(epoch_val_loss, self.net)
@@ -184,7 +185,7 @@ class Model:
                 break
         end_whole.record()
         torch.cuda.synchronize(device)
-        print("Elapsed time: {:.4f}s".format(start_whole.elapsed_time(end_whole)/1000))
+        print("Elapsed time: {:.4f}s".format(start_whole.elapsed_time(end_whole) / 1000))
 
     def evaluate(self, test_set: DataLoader):
         self.net: torch.nn.Module
