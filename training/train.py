@@ -75,12 +75,12 @@ PATIENCE = args.patience
 
 
 crop_len = [5, 10, 15, 25]
-hidden_units = [64, 128, 256, 512]
-layers_num = [2, 3, 5, 8]
+hidden_units = [128, 256, 512]
+layers_num = [2, 3, 5]
 learning_rate = [1e-03]
 dropout_prob = [0.3]
 batch_size = [256]
-fc_dim = [256, 512]
+fc_dim = [256, 512, 784]
 
 
 def clean_folder(folder):
@@ -102,6 +102,10 @@ def __train__():
     for CROP_LEN, HIDDEN_UNITS, LAYERS_NUM, LEARNING_RATE, DROPOUT_PROB, BATCH_SIZE, FC_DIM in product(
         crop_len, hidden_units, layers_num, learning_rate, dropout_prob, batch_size, fc_dim
     ):
+        # initialize CUDA state at every iteration
+        torch.cuda.empty_cache()
+        torch.cuda.init()
+
         RUN_PATH = os.path.join('source', 'training', 'experiments',
                                 'crop{crop}_hid{hid}_ln{ln}_lr{lr}_fc{fc}_batch{b}_drop{d}'.format(
                                     crop=CROP_LEN, hid=HIDDEN_UNITS, ln=LAYERS_NUM, lr=LEARNING_RATE, d=DROPOUT_PROB,
