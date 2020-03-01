@@ -27,7 +27,7 @@ class Network(nn.Module):
         self.fc = nn.Linear(hidden_units + audio_embedding_dim, fc_dim)
 
         # dropout layer after linear layer
-        self.dropout = nn.Dropout(dropout_prob)
+        # self.dropout = nn.Dropout(dropout_prob)
 
         # Define output layer
         self.out = nn.Linear(fc_dim, 1)
@@ -40,7 +40,7 @@ class Network(nn.Module):
         # We want to consider only the last time step for video since we want to understand what the LSTM has seen
         x = self.fc(torch.cat([x[:, -1, :], inputs[1]], dim=1))
 
-        x = self.dropout(x)
+        # x = self.dropout(x)
 
         # Linear layer
         x = self.out(x)
