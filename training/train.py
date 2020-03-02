@@ -28,29 +28,29 @@ parser.add_argument('--testdatasetpath',
                     type=str,
                     default='dataset/test_audio_video_embeddings.csv',
                     help='Path of the test csv folder')
-parser.add_argument('--crop_len',
-                    type=int,
-                    default=10,
-                    help='Number of frames features to be randomly cropped from video')
+# parser.add_argument('--crop_len',
+#                     type=int,
+#                     default=10,
+#                     help='Number of frames features to be randomly cropped from video')
 
 # Network structure
 parser.add_argument('--video_embedding_dim', type=int, default=512, help='Dimension of features vector of video')
 parser.add_argument('--audio_embedding_dim', type=int, default=50, help='Dimension of features vector of audio')
-parser.add_argument('--hidden_units', type=int, default=256, help='Number of RNN hidden units')
-parser.add_argument('--layers_num', type=int, default=3, help='Number of RNN stacked layers')
-parser.add_argument('--fc_dim', type=int, default=512, help='Dimension of last FC layer that collects video and audio')
-parser.add_argument('--dropout_prob', type=float, default=0.3, help='Dropout probability')
+# parser.add_argument('--hidden_units', type=int, default=256, help='Number of RNN hidden units')
+# parser.add_argument('--layers_num', type=int, default=3, help='Number of RNN stacked layers')
+# parser.add_argument('--fc_dim', type=int, default=512, help='Dimension of last FC layer that collects video and audio')
+# parser.add_argument('--dropout_prob', type=float, default=0.3, help='Dropout probability')
 # Training parameters
-parser.add_argument('--batchsize', type=int, default=128, help='Training batch size')
+# parser.add_argument('--batchsize', type=int, default=128, help='Training batch size')
 parser.add_argument('--optimizer', type=str, default='adam', help='Type of optimizer')
 parser.add_argument('--loss_type', type=str, default='BCE', help='Loss type')
 parser.add_argument('--val_size', type=float, default=.3, help='Dimension of validation')
-parser.add_argument('--learning_rate', type=float, default=1e-3, help='Learning rate')
+# parser.add_argument('--learning_rate', type=float, default=1e-3, help='Learning rate')
 parser.add_argument('--num_epochs', type=int, default=100000, help='Number of training epochs')
 parser.add_argument('--patience', type=int, default=15, help='Patience to use in EarlyStopping')
 
 # Save
-parser.add_argument('--model_dir', type=str, default='exp12', help='Where to load models and params')
+parser.add_argument('--model_dir', type=str, default='exp12', help='Where to load from models and params')
 
 args = parser.parse_args()
 
@@ -84,6 +84,11 @@ fc_dim = [256, 512, 784]
 
 
 def clean_folder(folder):
+    """
+    Cleans all checkpoints that are sub-optimal and leave the best.
+    :param folder: folder path
+    :return: None
+    """
     min_loss = 100
     for file in os.listdir(folder):
         if 'checkpoint' in file:
