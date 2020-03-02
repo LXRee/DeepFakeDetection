@@ -1,3 +1,4 @@
+librosa
 h5py
 tqdm
 cv2

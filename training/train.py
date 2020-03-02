@@ -10,8 +10,8 @@ from torchvision import transforms
 from training.dataset import EmbeddingsDataset, ToTensor, RandomCrop
 from training.model import Model
 
-device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-print('Running on device: {}'.format(device))
+DEVICE = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+print('Running on device: {}'.format(DEVICE))
 
 # ------------------
 # --- PARAMETERS ---
@@ -73,6 +73,7 @@ LOSS_TYPE = args.loss_type
 VAL_SIZE = args.val_size
 PATIENCE = args.patience
 
+# TODO: tune for grid search
 crop_len = [5, 10, 15, 25]
 hidden_units = [128, 256, 512]
 layers_num = [2, 3, 5]

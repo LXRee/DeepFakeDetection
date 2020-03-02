@@ -210,3 +210,5 @@ venv/bin/
 venv/include/
 venv/lib64
 venv/pyvenv.cfg
+/data_preparation/embeddings/checkpoints/
+dataset/deepfake-detection-challenge/train_sample_extracted_audio/
