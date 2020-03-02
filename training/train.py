@@ -246,9 +246,6 @@ def do_the_job(parameters: Dict, dataset):
                 run_name=RUN_PATH
             )
 
-            with open(os.path.join(RUN_PATH, 'last_epoch_value.txt'), 'w') as f:
-                f.write(str(model.last_epoch))
-
             # clean folder from useless checkpoints
             clean_folder(RUN_PATH)
         except FileExistsError as e:

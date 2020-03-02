@@ -34,9 +34,6 @@ class Model:
         self.val_loss_log = torch.tensor([]).to(DEVICE)
         self.test_loss_log = torch.tensor([]).to(DEVICE)
 
-        # TODO: To restore optimizer's state when training from previous step we need last epoch. I don't know where to save it
-        self.last_epoch = 0
-
     def __build_model(self) -> (torch.Tensor, torch.optim, nn.Module):
         """
         Build Torch network, loss and its optimizer.
@@ -97,7 +94,6 @@ class Model:
         """
         self.net: nn.Module
         state = {
-            'epoch': self.last_epoch + 1,
             'state_dict': self.net.state_dict(),
             # 'optim_dict': self.optimizer.state_dict()
         }
@@ -199,7 +195,6 @@ class Model:
                 self.save(run_name, epoch_val_loss.cpu().detach().numpy(), epoch)
             if early_stopping.early_stop:
                 print("Early stopping")
-                self.last_epoch = epoch
                 break
         end_whole.record()
         torch.cuda.synchronize(DEVICE)
