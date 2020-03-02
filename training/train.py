@@ -101,10 +101,6 @@ def __train__():
     for CROP_LEN, HIDDEN_UNITS, LAYERS_NUM, LEARNING_RATE, DROPOUT_PROB, BATCH_SIZE, FC_DIM in product(
             crop_len, hidden_units, layers_num, learning_rate, dropout_prob, batch_size, fc_dim
     ):
-        # initialize CUDA state at every iteration
-        torch.cuda.empty_cache()
-        torch.cuda.init()
-
         RUN_PATH = os.path.join('source', 'training', 'experiments',
                                 'crop{crop}_hid{hid}_ln{ln}_lr{lr}_fc{fc}_batch{b}_drop{d}'
                                 .format(crop=CROP_LEN,
@@ -133,6 +129,10 @@ def __train__():
             'audio_embedding_dim': AUDIO_EMBEDDING_DIM
         }
         try:
+            # initialize CUDA state at every iteration
+            torch.cuda.empty_cache()
+            torch.cuda.init()
+
             os.makedirs(RUN_PATH, exist_ok=False)
 
             trans = transforms.Compose([
