@@ -5,7 +5,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
-from training.network import Network
+from training.network import LSTMNetwork, TransformerNetwork
 from training.pytorchtools import EarlyStopping, Accuracy
 
 use_cuda = torch.cuda.is_available()
@@ -14,12 +14,14 @@ DEVICE = torch.device("cuda:0" if use_cuda else "cpu")
 
 class Model:
     def __init__(self,
+                 network_type: str,
                  net_params: Dict[str, Union[str, int]],
                  pos_weights,
                  optimizer: str = "adam",
                  loss: str = "crossentropy",
                  lr: float = .1):
 
+        self.__network_type = network_type
         self.__net_params = net_params
         self.__optimizer_type = optimizer
         self.__loss_type = loss
@@ -40,19 +42,35 @@ class Model:
         Build Torch network, loss and its optimizer.
         @:return loss, optimizer, network
         """
-        hidden_units = self.__net_params['hidden_units']
-        layers_num = self.__net_params['layers_num']
         dropout_prob = self.__net_params['dropout_prob']
         video_emb_dim = self.__net_params['video_embedding_dim']
         audio_emb_dim = self.__net_params['audio_embedding_dim']
         fc_dim = self.__net_params['fc_dim']
 
-        network: nn.Module = Network(hidden_units,
-                                     layers_num,
-                                     fc_dim,
-                                     video_emb_dim,
-                                     audio_emb_dim,
-                                     dropout_prob)
+        # choose hyperparameters for the right network and define network
+        if self.__network_type == 'LSTM':
+            hidden_units = self.__net_params['hidden_units']
+            layers_num = self.__net_params['layers_num']
+            network: nn.Module = LSTMNetwork(hidden_units,
+                                             layers_num,
+                                             fc_dim,
+                                             video_emb_dim,
+                                             audio_emb_dim,
+                                             dropout_prob)
+        elif self.__network_type == 'transformer':
+            n_head = self.__net_params['n_head']
+            dim_feedforward = self.__net_params['dim_feedforward']
+            enc_layers = self.__net_params['enc_layers']
+            network: nn.Module = TransformerNetwork(n_head,
+                                                    dim_feedforward,
+                                                    enc_layers,
+                                                    dropout_prob,
+                                                    fc_dim,
+                                                    video_emb_dim,
+                                                    audio_emb_dim,
+                                                    )
+        else:
+            raise ValueError('Bad network type. Please choose between "LSTM" and "transfomer"')
 
         network.to(DEVICE)
         acc_fn = Accuracy()
@@ -119,7 +137,7 @@ class Model:
                 labels = batch['label'].to(DEVICE)
 
                 # Forward pass
-                net_outs, _ = net(net_inputs)
+                net_outs = net(net_inputs)
 
                 # Update network
                 loss = loss_fn(net_outs.squeeze(), labels)
@@ -156,7 +174,7 @@ class Model:
                     labels = batch['label'].to(DEVICE)
 
                     # Evaluate the network over the input
-                    net_outs, _ = net(net_inputs)
+                    net_outs = net(net_inputs)
 
                     conc_out = torch.cat([conc_out, torch.unsqueeze(net_outs.squeeze(), dim=-1)])
                     conc_label = torch.cat([conc_label, torch.unsqueeze(labels, dim=-1)])
@@ -204,7 +222,7 @@ class Model:
                     labels = batch['label'].to(DEVICE)
 
                     # Evaluate the network over the input
-                    net_outs, _ = net(net_inputs)
+                    net_outs = net(net_inputs)
 
                     conc_out = torch.cat([conc_out, torch.unsqueeze(net_outs.squeeze(), dim=-1)])
                     conc_label = torch.cat([conc_label, torch.unsqueeze(labels, dim=-1)])
