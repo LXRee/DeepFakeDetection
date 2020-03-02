@@ -27,7 +27,7 @@ la faccia (con `MTCNN` e pesi pre-allenati). Per ogni faccia vengono estratte le
 pre-allenati. In questo caso ho modificato l'architettura della rete in modo tale da memorizzare le feature del penultimo 
 layer FC, cosi' da avere piu' espressivita'. Si crea un `pandas` `DataFrame` all'interno del quale compaiono le colonne
 `filename` (path al file), `video_embedding` per le features delle facce, `label` per la label corrispettiva.
-Si vedano i file `DetectionPipeline.py` e `create_video_embeddings.py` nel particolare.
+Si vedano i file `FaceDetectionPipeline.py` e `create_video_embeddings.py` nel particolare.
 3. **Manipolazione dell'audio**.
 Da ogni video viene estratta la corrispondente traccia audio (file `extract_audio.py`). Per ogni traccia video ne viene
 realizzato una sorta di istrogramma, che viene analizzato da una rete convoluzionale pre-allenata. Anche di questo

@@ -73,6 +73,7 @@ LOSS_TYPE = args.loss_type
 VAL_SIZE = args.val_size
 PATIENCE = args.patience
 
+# TODO: tune for grid search
 crop_len = [5, 10, 15, 25]
 hidden_units = [128, 256, 512]
 layers_num = [2, 3, 5]

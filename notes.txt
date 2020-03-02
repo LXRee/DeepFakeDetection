@@ -1,0 +1,5 @@
+1. Extract audio from video       -> helper/extract_audio.py
+2. Extract video features         -> data_preparation/embeddings/create_video_embeddings.py
+3. Merge audio and video features -> data_preparation/embeddings/merge_embeddings.py
+4. Train                          -> training/train.py
+5. Evaluate                       -> training/train.py
