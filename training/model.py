@@ -89,7 +89,7 @@ class Model:
 
         return acc_fn, loss_fn, optimizer, network
 
-    def save(self, run_path: str = "exp0", loss_value: float = 10):
+    def save(self, run_path: str = "exp0", loss_value: float = 10, epoch: int = 0):
         """
         Saves only Torch model parameters. To restore Torch training it is better to see "save"
         Save the state_dict only if you want to continue training from a certain point.
@@ -102,7 +102,7 @@ class Model:
             # 'optim_dict': self.optimizer.state_dict()
         }
         self.net: nn.Module
-        filepath = os.path.join(run_path, 'checkpoint_' + str(loss_value) + '.pt')
+        filepath = os.path.join(run_path, 'checkpoint_' + str(loss_value) + '_ep' + str(epoch) + '.pt')
         torch.save(state, filepath)
 
     def fit(self, epochs: int, train_set: DataLoader, val_set: DataLoader, patience: int = 20, run_name: str = None):
@@ -196,7 +196,7 @@ class Model:
             # The if statement is not slowing down training since each epoch last very long.
             early_stopping(epoch_val_loss, self.net)
             if early_stopping.save_checkpoint and run_name:
-                self.save(run_name, epoch_val_loss.cpu().detach().numpy())
+                self.save(run_name, epoch_val_loss.cpu().detach().numpy(), epoch)
             if early_stopping.early_stop:
                 print("Early stopping")
                 self.last_epoch = epoch
