@@ -9,7 +9,7 @@ from training.network import Network
 from training.pytorchtools import EarlyStopping, Accuracy
 
 use_cuda = torch.cuda.is_available()
-device = torch.device("cuda:0" if use_cuda else "cpu")
+DEVICE = torch.device("cuda:0" if use_cuda else "cpu")
 
 
 class Model:
@@ -28,9 +28,9 @@ class Model:
 
         self.acc, self.loss, self.optimizer, self.net = self.__build_model()
 
-        self.train_loss_log = torch.tensor([]).to(device)
-        self.val_loss_log = torch.tensor([]).to(device)
-        self.test_loss_log = torch.tensor([]).to(device)
+        self.train_loss_log = torch.tensor([]).to(DEVICE)
+        self.val_loss_log = torch.tensor([]).to(DEVICE)
+        self.test_loss_log = torch.tensor([]).to(DEVICE)
 
         # TODO: To restore optimizer's state when training from previous step we need last epoch. I don't know where to save it
         self.last_epoch = 0
@@ -54,7 +54,7 @@ class Model:
                                      audio_emb_dim,
                                      dropout_prob)
 
-        network.to(device)
+        network.to(DEVICE)
         acc_fn = Accuracy()
 
         if self.__loss_type == "BCE":
@@ -111,12 +111,12 @@ class Model:
         for epoch in range(epochs):
             start_epoch.record()
             net.train()
-            conc_losses: torch.Tensor = torch.tensor([]).to(device)
-            conc_acc: torch.Tensor = torch.tensor([]).to(device)
+            conc_losses: torch.Tensor = torch.tensor([]).to(DEVICE)
+            conc_acc: torch.Tensor = torch.tensor([]).to(DEVICE)
 
             for batch in train_set:
-                net_inputs = (batch['video_embedding'].to(device), batch['audio_embedding'].to(device))
-                labels = batch['label'].to(device)
+                net_inputs = (batch['video_embedding'].to(DEVICE), batch['audio_embedding'].to(DEVICE))
+                labels = batch['label'].to(DEVICE)
 
                 # Forward pass
                 net_outs, _ = net(net_inputs)
@@ -148,12 +148,12 @@ class Model:
 
             # Validation
             net.eval()
-            conc_out: torch.Tensor = torch.tensor([]).to(device)
-            conc_label: torch.Tensor = torch.tensor([]).to(device)
+            conc_out: torch.Tensor = torch.tensor([]).to(DEVICE)
+            conc_label: torch.Tensor = torch.tensor([]).to(DEVICE)
             with torch.no_grad():
                 for batch in val_set:
-                    net_inputs = (batch['video_embedding'].to(device), batch['audio_embedding'].to(device))
-                    labels = batch['label'].to(device)
+                    net_inputs = (batch['video_embedding'].to(DEVICE), batch['audio_embedding'].to(DEVICE))
+                    labels = batch['label'].to(DEVICE)
 
                     # Evaluate the network over the input
                     net_outs, _ = net(net_inputs)
@@ -165,7 +165,7 @@ class Model:
                 epoch_val_acc = acc_fn(conc_out, conc_label).float()
 
             end_epoch.record()
-            torch.cuda.synchronize(device)
+            torch.cuda.synchronize(DEVICE)
             print(
                 "Epoch: {}\ttrain: acc: {:4f} loss: {:.4f}\t\tval: acc: {:.4f} loss: {:.4f}\ttime: {:.4}s".format(epoch,
                                                                                                                   epoch_train_acc,
@@ -184,7 +184,7 @@ class Model:
                 self.last_epoch = epoch
                 break
         end_whole.record()
-        torch.cuda.synchronize(device)
+        torch.cuda.synchronize(DEVICE)
         print("Elapsed time: {:.4f}s".format(start_whole.elapsed_time(end_whole) / 1000))
 
     def evaluate(self, test_set: DataLoader):
@@ -195,13 +195,13 @@ class Model:
         # Put network in evaluation mode aka Dropout and BatchNorm are disabled
         net.eval()
         with torch.no_grad():
-            conc_out: torch.Tensor = torch.tensor([]).to(device)
-            conc_label: torch.Tensor = torch.tensor([]).to(device)
+            conc_out: torch.Tensor = torch.tensor([]).to(DEVICE)
+            conc_label: torch.Tensor = torch.tensor([]).to(DEVICE)
             # Do not update gradients
             with torch.no_grad():
                 for batch in test_set:
-                    net_inputs = (batch['video_embedding'].to(device), batch['audio_embedding'].to(device))
-                    labels = batch['label'].to(device)
+                    net_inputs = (batch['video_embedding'].to(DEVICE), batch['audio_embedding'].to(DEVICE))
+                    labels = batch['label'].to(DEVICE)
 
                     # Evaluate the network over the input
                     net_outs, _ = net(net_inputs)

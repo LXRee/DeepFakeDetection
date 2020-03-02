@@ -10,8 +10,8 @@ from torchvision import transforms
 from training.dataset import EmbeddingsDataset, ToTensor, RandomCrop
 from training.model import Model
 
-device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-print('Running on device: {}'.format(device))
+DEVICE = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+print('Running on device: {}'.format(DEVICE))
 
 # ------------------
 # --- PARAMETERS ---

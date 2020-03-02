@@ -78,7 +78,7 @@ def merge_audio_video_df(audio_df, video_df, for_submission=False):
             audio_embedding = audio_df['audio_embedding'].loc[label_to_key[file_name]]
         except KeyError:
             # In case the video has no audio, we put a ones vector of dimension 50.
-            # I got the dimension hardcoded from class "MASRCNN_activate" in "create_audio_embeddings",
+            # I got the dimension hardcoded from class "Mask_RCNN_activate" in "create_audio_embeddings",
             # num_dense_neurons. It has to be changed if changed also there.
             audio_embedding = np.ones(50, dtype='float32')
             video_no_audio += 1

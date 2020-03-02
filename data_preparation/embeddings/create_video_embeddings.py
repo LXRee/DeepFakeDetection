@@ -9,9 +9,9 @@ from tqdm import tqdm
 from data_preparation.embeddings.classes.FaceDetectionPipeline import FaceDetectionPipeline
 from data_preparation.utils.custom_exceptions import NoFrames
 
-device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-# device = 'cpu'
-print(f'Running on device: {device}')
+DEVICE = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+# DEVICE = 'cpu'
+print(f'Running on device: {DEVICE}')
 
 
 # Source: https://www.kaggle.com/timesler/facial-recognition-model-in-pytorch
@@ -23,7 +23,7 @@ def process_faces(faces, feature_extractor, device='cuda:0'):
         return None
 
     # Send faces array to device
-    faces = torch.cat(faces).to(device)
+    faces = torch.cat(faces).to(DEVICE)
 
     # Generate facial feature vectors using a pre-trained model.
     # Keep the generated features (512 per face) as an "embedding" vector to be fed into a LSTM network.
@@ -51,10 +51,10 @@ def create_submission_embedding():
         all_test_videos.extend([os.path.join(root, file) for file in files])
 
     # Load face detector
-    face_detector = MTCNN(margin=14, keep_all=True, factor=0.5, device=device).eval()
+    face_detector = MTCNN(margin=14, keep_all=True, factor=0.5, device=DEVICE).eval()
 
     # Load facial recognition model
-    feature_extractor = InceptionResnetV1(pretrained='vggface2', device=device).eval()
+    feature_extractor = InceptionResnetV1(pretrained='vggface2', device=DEVICE).eval()
 
     # Define face detection pipeline
     detection_pipeline = FaceDetectionPipeline(detector=face_detector, n_frames=N_FRAMES, resize=SCALE, window=WINDOW)
@@ -73,7 +73,7 @@ def create_submission_embedding():
                 faces = detection_pipeline(path)
 
                 # Calculate faces' features embeddings
-                embeddings = process_faces(faces, feature_extractor, device)
+                embeddings = process_faces(faces, feature_extractor, DEVICE)
 
                 if embeddings is None:
                     continue
@@ -116,10 +116,10 @@ def create_images_embedding():
     all_train_videos = list(metadata.keys())
 
     # Load face detector
-    face_detector = MTCNN(margin=14, keep_all=True, factor=0.5, device=device).eval()
+    face_detector = MTCNN(margin=14, keep_all=True, factor=0.5, device=DEVICE).eval()
 
     # Load facial recognition model
-    feature_extractor = InceptionResnetV1(pretrained='vggface2', device=device).eval()
+    feature_extractor = InceptionResnetV1(pretrained='vggface2', device=DEVICE).eval()
 
     # Define face detection pipeline
     detection_pipeline = FaceDetectionPipeline(detector=face_detector, n_frames=N_FRAMES, resize=SCALE, window=WINDOW)
@@ -165,7 +165,7 @@ def create_images_embedding():
                     faces = detection_pipeline(path)
 
                     # Calculate features embeddings of faces
-                    embeddings = process_faces(faces, feature_extractor, device)
+                    embeddings = process_faces(faces, feature_extractor, DEVICE)
 
                     if embeddings is None:
                         continue
