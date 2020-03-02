@@ -14,7 +14,7 @@ Mi sono ampiamente ispirato ai seguenti notebook, mentre l'idea della LSTM è or
 
 **Training**: https://www.kaggle.com/phunghieu/deepfake-detection-training-baseline
 
-**Audio features**: https://www.kaggle.com/phoenix9032/fake-audio-detector
+**Audio features**: https://www.kaggle.com/cookiecs/resnext-audio-video/
 
 ## Passi
 1. **scaricare il dataset**. 
