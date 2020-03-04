@@ -115,37 +115,18 @@ else:
     raise ValueError('{} network has not been implemented yet. Please choose between "LSTM" and "transformer"')
 
 
-def clean_folder(folder):
+def clean_folder(folder, loss, delta=0.02):
     """
-    Cleans all checkpoints that are sub-optimal and leave the best.
-    Leave three in order to choose not the one that "with fortune" has better score after multiple iterations,
-    but the most robust one.
-
-    Lo so, è bruttissima, in cerca di soluzioni più eleganti.
+    Cleans all checkpoints that are distant > delta from average loss
     :param folder: folder path
     :return: None
     """
-    min_loss_0 = 100
-    min_loss_1 = 100
-    min_loss_2 = 100
-    min_loss_3 = 100
-    min_loss_4 = 100
     for file in os.listdir(folder):
         if 'checkpoint' in file:
             filename = file.split('.')[0] + '.' + file.split('.')[1]
             loss_value = filename.split('_')[1]
             loss_value = float(loss_value)
-            if loss_value < min_loss_0:
-                min_loss_0 = loss_value
-            elif loss_value < min_loss_1:
-                min_loss_1 = loss_value
-            elif loss_value < min_loss_2:
-                min_loss_2 = loss_value
-            elif loss_value < min_loss_3:
-                min_loss_3 = loss_value
-            elif loss_value < min_loss_4:
-                min_loss_4 = loss_value
-            else:
+            if not loss - delta < loss_value < loss + delta:
                 os.remove(os.path.join(folder, file))
 
 
@@ -284,8 +265,9 @@ def do_the_job(parameters: Dict, dataset):
             "Average loss over these parameters: {}\nPlease choose the checkpoint that is nearer to this value.".format(
                 loss))
         # clean folder from useless checkpoints
-        clean_folder(RUN_PATH)
-    except FileExistsError as e:
+        clean_folder(RUN_PATH, loss)
+
+    except FileExistsError:
         print("Folder {} already trained. Jumping to next hyper parameters.".format(RUN_PATH))
 
 
