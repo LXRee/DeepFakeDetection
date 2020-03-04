@@ -3,9 +3,11 @@ import json
 import os
 from itertools import product
 from typing import Dict
+import random
+import numpy as np
 
 import torch
-from torch.utils.data import random_split, DataLoader
+from torch.utils.data import random_split, DataLoader, SubsetRandomSampler, Subset
 from torchvision import transforms
 
 from training.dataset import EmbeddingsDataset, ToTensor, RandomCrop
@@ -59,13 +61,14 @@ parser.add_argument('--loss_type', type=str, default='BCE', help='Loss type')
 parser.add_argument('--val_size', type=float, default=.3, help='Dimension of validation')
 parser.add_argument('--learning_rate', type=float, default=1e-3, help='Learning rate')
 parser.add_argument('--num_epochs', type=int, default=100000, help='Number of training epochs')
-parser.add_argument('--patience', type=int, default=15, help='Patience to use in EarlyStopping')
+parser.add_argument('--patience', type=int, default=5, help='Patience to use in EarlyStopping')
 
 # Save
 parser.add_argument('--model_dir', type=str, default='exp12', help='Where to load from models and params')
 
 args = parser.parse_args()
 NETWORK = args.network
+FOLDS = 3
 
 TRAIN_DATASET_PATH = args.datasetpath
 TEST_DATASET_PATH = args.testdatasetpath
@@ -115,120 +118,146 @@ else:
 def clean_folder(folder):
     """
     Cleans all checkpoints that are sub-optimal and leave the best.
+    Leave three in order to choose not the one that "with fortune" has better score after multiple iterations,
+    but the most robust one.
+
+    Lo so, è bruttissima, in cerca di soluzioni più eleganti.
     :param folder: folder path
     :return: None
     """
-    min_loss = 100
+    min_loss_0 = 100
+    min_loss_1 = 100
+    min_loss_2 = 100
+    min_loss_3 = 100
+    min_loss_4 = 100
     for file in os.listdir(folder):
         if 'checkpoint' in file:
             filename = file.split('.')[0] + '.' + file.split('.')[1]
             loss_value = filename.split('_')[1]
             loss_value = float(loss_value)
-            if loss_value < min_loss:
-                min_loss = loss_value
+            if loss_value < min_loss_0:
+                min_loss_0 = loss_value
+            elif loss_value < min_loss_1:
+                min_loss_1 = loss_value
+            elif loss_value < min_loss_2:
+                min_loss_2 = loss_value
+            elif loss_value < min_loss_3:
+                min_loss_3 = loss_value
+            elif loss_value < min_loss_4:
+                min_loss_4 = loss_value
             else:
                 os.remove(os.path.join(folder, file))
 
 
 def do_the_job(parameters: Dict, dataset):
-        """
-        Actual training. This method is useful to keep compatibility between network architectures
-        :param parameters: dict with parameters
-        :return:
-        """
-        CROP_LEN = parameters['crop_len']
-        LEARNING_RATE = parameters['learning_rate']
-        DROPOUT_PROB = parameters['dropout_prob']
-        BATCH_SIZE = parameters['batch_size']
-        FC_DIM = parameters['fc_dim']
+    """
+    Actual training. This method is useful to keep compatibility between network architectures
+    :param parameters: dict with parameters
+    :return:
+    """
+    CROP_LEN = parameters['crop_len']
+    LEARNING_RATE = parameters['learning_rate']
+    DROPOUT_PROB = parameters['dropout_prob']
+    BATCH_SIZE = parameters['batch_size']
+    FC_DIM = parameters['fc_dim']
 
-        # overwrite hyper parameters args to save them in the right way
-        args.crop_len = CROP_LEN
-        args.learning_rate = LEARNING_RATE
-        args.dropout_prob = DROPOUT_PROB
-        args.batchsize = BATCH_SIZE
-        args.fc_dim = FC_DIM
-        # Define network params
-        net_params = {
-            'fc_dim': FC_DIM,
-            'dropout_prob': DROPOUT_PROB,
-            'video_embedding_dim': VIDEO_EMBEDDING_DIM,
-            'audio_embedding_dim': AUDIO_EMBEDDING_DIM
-        }
+    # overwrite hyper parameters args to save them in the right way
+    args.crop_len = CROP_LEN
+    args.learning_rate = LEARNING_RATE
+    args.dropout_prob = DROPOUT_PROB
+    args.batchsize = BATCH_SIZE
+    args.fc_dim = FC_DIM
+    # Define network params
+    net_params = {
+        'fc_dim': FC_DIM,
+        'dropout_prob': DROPOUT_PROB,
+        'video_embedding_dim': VIDEO_EMBEDDING_DIM,
+        'audio_embedding_dim': AUDIO_EMBEDDING_DIM
+    }
 
-        if NETWORK == 'LSTM':
-            HIDDEN_UNITS = parameters['hidden_units']
-            LAYERS_NUM = parameters['layers_num']
-            RUN_PATH = os.path.join('source', 'training', 'experiments', NETWORK,
-                                    'crop{crop}_hid{hid}_ln{ln}_lr{lr}_fc{fc}_batch{b}_drop{d}'
-                                    .format(crop=CROP_LEN,
-                                            hid=HIDDEN_UNITS,
-                                            ln=LAYERS_NUM,
-                                            lr=LEARNING_RATE,
-                                            d=DROPOUT_PROB,
-                                            b=BATCH_SIZE,
-                                            fc=FC_DIM))
-            # overwrite parameters that has been choosen from gridsearch
-            args.hidden_units = HIDDEN_UNITS
-            args.layers_num = LAYERS_NUM
+    if NETWORK == 'LSTM':
+        HIDDEN_UNITS = parameters['hidden_units']
+        LAYERS_NUM = parameters['layers_num']
+        RUN_PATH = os.path.join('source', 'training', 'experiments', NETWORK,
+                                'crop{crop}_hid{hid}_ln{ln}_lr{lr}_fc{fc}_batch{b}_drop{d}'
+                                .format(crop=CROP_LEN,
+                                        hid=HIDDEN_UNITS,
+                                        ln=LAYERS_NUM,
+                                        lr=LEARNING_RATE,
+                                        d=DROPOUT_PROB,
+                                        b=BATCH_SIZE,
+                                        fc=FC_DIM))
+        # overwrite parameters that has been choosen from gridsearch
+        args.hidden_units = HIDDEN_UNITS
+        args.layers_num = LAYERS_NUM
 
-            # add LST params
-            net_params['hidden_units'] = HIDDEN_UNITS
-            net_params['layers_num'] = LAYERS_NUM
+        # add LST params
+        net_params['hidden_units'] = HIDDEN_UNITS
+        net_params['layers_num'] = LAYERS_NUM
 
-        elif NETWORK == 'transformer':
-            N_HEAD = parameters['n_head']
-            DIM_FEEDFORWARD = parameters['dim_feedforward']
-            ENC_LAYERS = parameters['enc_layers']
-            RUN_PATH = os.path.join('source', 'training', 'experiments', NETWORK,
-                                    'crop{crop}_head{head}_dimF{dimF}_encL{encL}_lr{lr}_fc{fc}_batch{b}_drop{d}'
-                                    .format(crop=CROP_LEN,
-                                            head=N_HEAD,
-                                            dimF=DIM_FEEDFORWARD,
-                                            encL=ENC_LAYERS,
-                                            lr=LEARNING_RATE,
-                                            d=DROPOUT_PROB,
-                                            b=BATCH_SIZE,
-                                            fc=FC_DIM))
-            # overwrite parameters that has been choosen from gridsearch
-            args.n_head = N_HEAD
-            args.dim_feedforward = DIM_FEEDFORWARD
-            args.enc_layers = ENC_LAYERS
+    elif NETWORK == 'transformer':
+        N_HEAD = parameters['n_head']
+        DIM_FEEDFORWARD = parameters['dim_feedforward']
+        ENC_LAYERS = parameters['enc_layers']
+        RUN_PATH = os.path.join('source', 'training', 'experiments', NETWORK,
+                                'crop{crop}_head{head}_dimF{dimF}_encL{encL}_lr{lr}_fc{fc}_batch{b}_drop{d}'
+                                .format(crop=CROP_LEN,
+                                        head=N_HEAD,
+                                        dimF=DIM_FEEDFORWARD,
+                                        encL=ENC_LAYERS,
+                                        lr=LEARNING_RATE,
+                                        d=DROPOUT_PROB,
+                                        b=BATCH_SIZE,
+                                        fc=FC_DIM))
+        # overwrite parameters that has been choosen from gridsearch
+        args.n_head = N_HEAD
+        args.dim_feedforward = DIM_FEEDFORWARD
+        args.enc_layers = ENC_LAYERS
 
-            # Add transformer params
-            net_params['n_head'] = N_HEAD
-            net_params['dim_feedforward'] = DIM_FEEDFORWARD
-            net_params['enc_layers'] = ENC_LAYERS
-        else:
-            raise ValueError('Bad network type. Please choose between "LSTM" and "transformer"')
+        # Add transformer params
+        net_params['n_head'] = N_HEAD
+        net_params['dim_feedforward'] = DIM_FEEDFORWARD
+        net_params['enc_layers'] = ENC_LAYERS
+    else:
+        raise ValueError('Bad network type. Please choose between "LSTM" and "transformer"')
 
-        print("Now training at: \n{}".format(RUN_PATH))
+    print("Now training at: \n{}".format(RUN_PATH))
 
-        try:
-            # initialize CUDA state at every iteration
-            torch.cuda.empty_cache()
-            torch.cuda.init()
+    try:
+        os.makedirs(RUN_PATH, exist_ok=False)
 
-            os.makedirs(RUN_PATH, exist_ok=False)
+        trans = transforms.Compose([
+            RandomCrop(CROP_LEN),
+            # LabelOneHot(),
+            ToTensor()
+        ])
 
-            trans = transforms.Compose([
-                RandomCrop(CROP_LEN),
-                # LabelOneHot(),
-                ToTensor()
-            ])
+        dataset.transform = trans
 
-            dataset.transform = trans
+        # Save training parameters
+        # TODO: it is saving ALL parameters - from all networks. It should save only parameters for the right one
+        with open(os.path.join(RUN_PATH, 'training_args.json'), 'w') as f:
+            json.dump(vars(args), f, indent=4)
 
-            # Save training parameters
-            # TODO: it is saving ALL parameters - from all networks. It should save only parameters for the right one
-            with open(os.path.join(RUN_PATH, 'training_args.json'), 'w') as f:
-                json.dump(vars(args), f, indent=4)
+        # Prepare information about dataset and partitions
+        dataset_len = len(dataset)
+        # partitions = round(dataset_len * (1 - VAL_SIZE)), round(dataset_len * VAL_SIZE)
+        # Prepare for kFold
+        indexes = list(range(dataset_len))
+        random.shuffle(indexes)
+        indexes_per_fold = round(dataset_len * VAL_SIZE)
 
-            dataset_len = len(dataset)
-            partitions = round(dataset_len * (1 - VAL_SIZE)), round(dataset_len * VAL_SIZE)
-            train_set, val_set = random_split(dataset, [*partitions])
+        # define loss array
+        losses = np.zeros(FOLDS, 'float32')
+        # This indexes selection has been tested and the subsets are without overlapping indexes
+        for i in range(FOLDS):
+            print("Training fold {}/{}".format(i+1, FOLDS))
+            val_set = Subset(dataset, indexes[i * indexes_per_fold: (i + 1) * indexes_per_fold])
+            train_set = Subset(dataset,
+                               indexes[0: max(i - 1, 0) * indexes_per_fold] + indexes[(i + 1) * indexes_per_fold:])
+
             train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True, num_workers=0, pin_memory=True)
-            val_loader = DataLoader(val_set, batch_size=BATCH_SIZE, num_workers=0, pin_memory=True)
+            val_loader = DataLoader(val_set, batch_size=round(BATCH_SIZE * VAL_SIZE), num_workers=0, pin_memory=True)
 
             model = Model(
                 NETWORK,
@@ -238,18 +267,26 @@ def do_the_job(parameters: Dict, dataset):
                 LOSS_TYPE,
                 LEARNING_RATE,
             )
-            model.fit(
+            losses[i] = model.fit(
                 epochs=NUM_EPOCHS,
                 train_set=train_loader,
                 val_set=val_loader,
                 patience=PATIENCE,
                 run_name=RUN_PATH
             )
+            # Empty CUDA cache to avoid re-use of manipulated data.
+            torch.cuda.empty_cache()
+        loss = losses.mean()
+        with open(os.path.join(RUN_PATH, 'average_loss-{}-.txt').format(loss), 'w') as f:
+            f.write('Average loss over {} folds: {:.4f}'.format(FOLDS, loss))
 
-            # clean folder from useless checkpoints
-            clean_folder(RUN_PATH)
-        except FileExistsError as e:
-            print("Folder {} already trained. Jumping to next hyper parameters.".format(RUN_PATH))
+        print(
+            "Average loss over these parameters: {}\nPlease choose the checkpoint that is nearer to this value.".format(
+                loss))
+        # clean folder from useless checkpoints
+        clean_folder(RUN_PATH)
+    except FileExistsError as e:
+        print("Folder {} already trained. Jumping to next hyper parameters.".format(RUN_PATH))
 
 
 def __train__():

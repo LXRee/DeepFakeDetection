@@ -204,6 +204,9 @@ class Model:
         torch.cuda.synchronize(DEVICE)
         print("Elapsed time: {:.4f}s".format(start_whole.elapsed_time(end_whole) / 1000))
 
+        # Return val_loss_min for KFold
+        return early_stopping.val_loss_min
+
     def evaluate(self, test_set: DataLoader):
         self.net: torch.nn.Module
         net = self.net
