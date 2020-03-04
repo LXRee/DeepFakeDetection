@@ -2,20 +2,22 @@ import numpy as np
 import torch
 
 
-class Accuracy(torch.nn.Module):
+class DeepFakeMetric(torch.nn.Module):
+    """
+    DeepFake competition metric: log-loss
+    """
     def __init__(self):
-        super(Accuracy, self).__init__()
+        super(DeepFakeMetric, self).__init__()
 
     def forward(self, outputs: torch.Tensor, labels: torch.Tensor, **kwargs):
-        # outputs = F.sigmoid(outputs)
-        # true = torch.mul(labels, torch.log(outputs)).sum()
-        # false = torch.mul(torch.sub(1., labels), torch.log(torch.sub(1., outputs))).sum()
+        outputs = torch.sigmoid(outputs)
+        true = torch.mul(labels, torch.log(outputs)).sum()
+        false = torch.mul(torch.sub(1., labels), torch.log(torch.sub(1., outputs))).sum()
         total = labels.size(0)
-        outputs = outputs.round().clamp(0, 1)
-        correct = (labels == outputs).sum().float() / total
-        return 100. * correct
-        # acc = - (1 / total) * (true + false)
-        # return acc
+        # correct = (labels == outputs).sum().float() / total
+        # return 100. * correct
+        acc = - (1 / total) * (true + false)
+        return acc
 
 
 class EarlyStopping:

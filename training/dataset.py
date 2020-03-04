@@ -27,10 +27,14 @@ class EmbeddingsDataset(Dataset):
         # if shuffle:
         #     np.random.shuffle(self.__locs)
         # Use pos_weight value to overcome imbalanced dataset.
-        # pos_labels = self.__labels.sum()
+        pos_labels = np.array(data['label']).sum()
         # https://pytorch.org/docs/stable/nn.html#torch.nn.BCEWithLogitsLoss
-        # self.__pos_weight = (self.__labels.shape[0] - pos_labels) / pos_labels
-        self.__pos_weight = 1.
+        self.__pos_weight = (data['label'].shape[0] - pos_labels) / pos_labels
+        # self.__pos_weight = 1.
+
+        # Force garbage collector to get rid of the data
+        data = None
+        gc.collect()
 
         self.transform = transform
 

@@ -6,7 +6,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 from training.network import LSTMNetwork, TransformerNetwork
-from training.pytorchtools import EarlyStopping, Accuracy
+from training.pytorchtools import EarlyStopping, DeepFakeMetric
 
 use_cuda = torch.cuda.is_available()
 DEVICE = torch.device("cuda:0" if use_cuda else "cpu")
@@ -70,10 +70,12 @@ class Model:
             raise ValueError('Bad network type. Please choose between "LSTM" and "transfomer"')
 
         network.to(DEVICE)
-        acc_fn = Accuracy()
+        acc_fn = DeepFakeMetric()
 
-        if self.__loss_type == "BCE":
-            loss_fn = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(self.__pos_weights).double())
+        if self.__loss_type == "crossentropy":
+            loss_fn = nn.CrossEntropyLoss()
+        elif self.__loss_type == "BCE":
+            loss_fn = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(self.__pos_weights))
         else:
             raise ValueError("{} loss is not implemented yet".format(self.__loss_type))
 
@@ -125,19 +127,19 @@ class Model:
         for epoch in range(epochs):
             start_epoch.record()
             net.train()
-            conc_losses: torch.Tensor = torch.tensor([]).to(DEVICE)
-            conc_acc: torch.Tensor = torch.tensor([]).to(DEVICE)
+            conc_losses = []
+            conc_acc = []
 
             for batch in train_set:
                 net_inputs = (batch['video_embedding'].to(DEVICE), batch['audio_embedding'].to(DEVICE))
                 labels = batch['label'].to(DEVICE)
 
                 # Forward pass
-                net_outs = net(net_inputs)
+                net_outs = net(net_inputs).squeeze()
 
                 # Update network
-                loss = loss_fn(net_outs.squeeze(), labels)
-                acc = acc_fn(net_outs.squeeze(), labels)
+                loss = loss_fn(net_outs, labels)
+                acc = acc_fn(net_outs, labels)
 
                 # Eventually clear previous recorded gradients
                 optimizer.zero_grad()
@@ -152,36 +154,38 @@ class Model:
                 optimizer.step()
 
                 # Return loss, acc
-                conc_losses = torch.cat([conc_losses, torch.unsqueeze(loss, dim=-1)])
-                conc_acc = torch.cat([conc_acc, torch.unsqueeze(acc, dim=-1)])
+                conc_losses.append(loss)
+                conc_acc.append(acc)
 
             # Update scheduler outside batch loop
             scheduler.step(epoch)
-            epoch_train_loss = torch.mean(conc_losses)
-            epoch_train_acc = torch.mean(conc_acc)
+            epoch_train_loss = torch.mean(torch.stack(conc_losses))
+            epoch_train_acc = torch.mean(torch.stack(conc_acc))
 
             # Validation
             net.eval()
-            conc_out: torch.Tensor = torch.tensor([]).to(DEVICE)
-            conc_label: torch.Tensor = torch.tensor([]).to(DEVICE)
+            conc_out = []
+            conc_label = []
             with torch.no_grad():
                 for batch in val_set:
                     net_inputs = (batch['video_embedding'].to(DEVICE), batch['audio_embedding'].to(DEVICE))
                     labels = batch['label'].to(DEVICE)
 
                     # Evaluate the network over the input
-                    net_outs = net(net_inputs)
+                    net_outs = net(net_inputs).squeeze()
 
-                    conc_out = torch.cat([conc_out, torch.unsqueeze(net_outs.squeeze(), dim=-1)])
-                    conc_label = torch.cat([conc_label, torch.unsqueeze(labels, dim=-1)])
+                    conc_out.append(net_outs)
+                    conc_label.append(labels)
 
+                conc_out = torch.cat(conc_out)
+                conc_label = torch.cat(conc_label)
                 epoch_val_loss = loss_fn(conc_out, conc_label)
-                epoch_val_acc = acc_fn(conc_out, conc_label).float()
+                epoch_val_acc = acc_fn(conc_out, conc_label)
 
             end_epoch.record()
             torch.cuda.synchronize(DEVICE)
             print(
-                "Epoch: {}\ttrain: acc: {:4f} loss: {:.4f}\t\tval: acc: {:.4f} loss: {:.4f}\ttime: {:.4}s".format(epoch,
+                "Epoch: {}\ttrain: acc: {:.4f} loss: {:.4f}\t\tval: acc: {:.4f} loss: {:.4f}\ttime: {:.4}s".format(epoch,
                                                                                                                   epoch_train_acc,
                                                                                                                   epoch_train_loss,
                                                                                                                   epoch_val_acc,
@@ -190,9 +194,9 @@ class Model:
                                                                                                                       end_epoch) / 1000))
             # Update early stopping. This is really useful to stop training in time.
             # The if statement is not slowing down training since each epoch last very long.
-            early_stopping(epoch_val_loss, self.net)
+            early_stopping(epoch_val_acc, self.net)
             if early_stopping.save_checkpoint and run_name:
-                self.save(run_name, epoch_val_loss.cpu().detach().numpy(), epoch)
+                self.save(run_name, epoch_val_acc.cpu().detach().numpy(), epoch)
             if early_stopping.early_stop:
                 print("Early stopping")
                 break
@@ -208,8 +212,8 @@ class Model:
         # Put network in evaluation mode aka Dropout and BatchNorm are disabled
         net.eval()
         with torch.no_grad():
-            conc_out: torch.Tensor = torch.tensor([]).to(DEVICE)
-            conc_label: torch.Tensor = torch.tensor([]).to(DEVICE)
+            conc_out = []
+            conc_label = []
             # Do not update gradients
             with torch.no_grad():
                 for batch in test_set:
@@ -219,10 +223,12 @@ class Model:
                     # Evaluate the network over the input
                     net_outs = net(net_inputs)
 
-                    conc_out = torch.cat([conc_out, torch.unsqueeze(net_outs.squeeze(), dim=-1)])
-                    conc_label = torch.cat([conc_label, torch.unsqueeze(labels, dim=-1)])
+                    conc_out.append(net_outs)
+                    conc_label.append(labels)
 
-                epoch_test_loss = loss_fn(conc_out.squeeze(), conc_label.squeeze())
-                epoch_test_acc = acc_fn(conc_out.squeeze(), conc_label.squeeze())
+                conc_out = torch.cat(conc_out)
+                conc_label = torch.cat(conc_label)
+                epoch_test_loss = loss_fn(conc_out, conc_label.long())
+                epoch_test_acc = acc_fn(conc_out, conc_label)
 
                 print("Test:\tacc: {:.4f}\n\t\tloss: {:.4f}".format(epoch_test_acc, epoch_test_loss))
