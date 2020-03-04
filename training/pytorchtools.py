@@ -8,16 +8,19 @@ class DeepFakeMetric(torch.nn.Module):
     """
     def __init__(self):
         super(DeepFakeMetric, self).__init__()
+        self.fn = torch.nn.BCEWithLogitsLoss()
 
     def forward(self, outputs: torch.Tensor, labels: torch.Tensor, **kwargs):
-        outputs = torch.sigmoid(outputs)
-        true = torch.mul(labels, torch.log(outputs)).sum()
-        false = torch.mul(torch.sub(1., labels), torch.log(torch.sub(1., outputs))).sum()
-        total = labels.size(0)
-        # correct = (labels == outputs).sum().float() / total
-        # return 100. * correct
-        acc = - (1 / total) * (true + false)
-        return acc
+        return self.fn(outputs, labels)
+        # outputs = torch.sigmoid(outputs).long()
+        # labels = labels.long()
+        # true = torch.mul(labels, torch.log(outputs)).sum()
+        # false = torch.mul(torch.sub(1., labels), torch.log(torch.sub(1., outputs))).sum()
+        # total = labels.size(0)
+        # # correct = (labels == outputs).sum().float() / total
+        # # return 100. * correct
+        # acc = - (1 / total) * (true + false)
+        # return acc.float()
 
 
 class EarlyStopping:

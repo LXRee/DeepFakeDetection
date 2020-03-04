@@ -17,10 +17,6 @@ class EmbeddingsDataset(Dataset):
         self.__data = {key: [values[0], values[1], values[2], values[3]] for key, values in enumerate(
             zip(data['filename'], data['video_embedding'], data['audio_embedding'], data['label']))}
 
-        # Force garbage collector to get rid of the data
-        data = None
-        gc.collect()
-
         # Code for h5py version
         # self.path = csv_path
 
@@ -91,6 +87,7 @@ class ToTensor:
     def __call__(self, sample):
         video_embedding = torch.tensor(sample['video_embedding']).float()
         audio_embedding = torch.tensor(sample['audio_embedding']).float()
+        # audio_embedding = torch.tensor(np.zeros_like(sample['audio_embedding'])).float()
         label = torch.tensor(sample['label']).float()
         return {**sample, 'video_embedding': video_embedding, 'audio_embedding': audio_embedding, 'label': label}
 
