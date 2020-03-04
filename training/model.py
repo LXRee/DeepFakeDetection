@@ -194,6 +194,7 @@ class Model:
                                                                                                                       end_epoch) / 1000))
             # Update early stopping. This is really useful to stop training in time.
             # The if statement is not slowing down training since each epoch last very long.
+            # PLEASE TAKE NOTE THAT we are using epoch_val_acc, since it brings the score function of the competition
             early_stopping(epoch_val_acc, self.net)
             if early_stopping.save_checkpoint and run_name:
                 self.save(run_name, epoch_val_acc.cpu().detach().numpy(), epoch)
@@ -204,7 +205,7 @@ class Model:
         torch.cuda.synchronize(DEVICE)
         print("Elapsed time: {:.4f}s".format(start_whole.elapsed_time(end_whole) / 1000))
 
-        # Return val_loss_min for KFold
+        # Return val_loss_min for KFold - which is, the metric that we register for early stopping.
         return early_stopping.val_loss_min
 
     def evaluate(self, test_set: DataLoader):
