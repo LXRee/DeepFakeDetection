@@ -5,6 +5,35 @@ import pandas as pd
 from tqdm import tqdm
 
 
+def augment_not_fake(source, dest, min_length=9):
+    """
+    Doubles the enough-long video embeddings for not fake ones.
+    :param source: path to source dataframe
+    :param dest: path to destination dataframe
+    :param min_length: min embedding length
+    :return:
+    """
+    df = pd.read_pickle(source)
+    doubled_counter = 0
+    not_fake = 0
+    for i in tqdm(range(df['label'].shape[0])):
+        # look for true labels
+        if df['label'].loc[i] == 0:
+            temp_video_embedding = df['video_embedding'].loc[i]
+            if temp_video_embedding.shape[0] > min_length:
+                df['video_embedding'].loc[i] = temp_video_embedding[0:round(temp_video_embedding.shape[0] / 2)]
+                new_pos = df['label'].shape[0]
+                df.loc[new_pos] = [df['filename'].loc[i] + '_0',
+                                                temp_video_embedding[round(temp_video_embedding.shape[0] / 2):],
+                                                df['audio_embedding'].loc[i],
+                                                df['label'].loc[i]]
+                doubled_counter += 1
+            not_fake += 1
+    print('Doubled {} not fake videos out of {}'.format(doubled_counter,
+                                                        not_fake))
+    df.to_pickle(dest)
+
+
 def merge_dataframes(source, dest):
     """
     Takes all dataframes in source folder and merge into a single Dataframe saved in dest folder
@@ -103,11 +132,12 @@ def save_many_in_path(path, df):
 
 
 if __name__ == '__main__':
-    # merge_dataframes('video_embeddings/partials', 'video_embeddings')
-    print("Loading video and audio DataFrames...")
-    audio_df = pd.read_pickle('test_audio_embeddings.csv')
-    video_df = pd.read_pickle('test_video_embeddings.csv')
-    print("DataFrames loaded. Now merging...")
-    df = merge_audio_video_df(audio_df, video_df, for_submission=False)
-    print("Finish merging. Now saving...")
-    df.to_pickle('test_audio_video_embeddings.csv')
+    # # merge_dataframes('video_embeddings/partials', 'video_embeddings')
+    # print("Loading video and audio DataFrames...")
+    # audio_df = pd.read_pickle('test_audio_embeddings.csv')
+    # video_df = pd.read_pickle('test_video_embeddings.csv')
+    # print("DataFrames loaded. Now merging...")
+    # df = merge_audio_video_df(audio_df, video_df, for_submission=False)
+    # print("Finish merging. Now saving...")
+    # df.to_pickle('test_audio_video_embeddings.csv')
+    augment_not_fake('../../../dataset/train_audio_video_embeddings.csv', '../../../dataset/train_audio_video_embeddings_doubled_15.csv', 15)
