@@ -232,7 +232,7 @@ def do_the_job(parameters: Dict, dataset):
         losses = np.zeros(FOLDS, 'float32')
         # This indexes selection has been tested and the subsets are without overlapping indexes
         for i in range(FOLDS):
-            print("Training fold {}/{}".format(i+1, FOLDS))
+            print("Training fold {}/{}".format(i + 1, FOLDS))
             val_set = Subset(dataset, indexes[i * indexes_per_fold: (i + 1) * indexes_per_fold])
             train_set = Subset(dataset,
                                indexes[0: max(i - 1, 0) * indexes_per_fold] + indexes[(i + 1) * indexes_per_fold:])
@@ -257,6 +257,7 @@ def do_the_job(parameters: Dict, dataset):
             )
             # Empty CUDA cache to avoid re-use of manipulated data.
             torch.cuda.empty_cache()
+            torch.cuda.init()
         loss = losses.mean()
         with open(os.path.join(RUN_PATH, 'average_loss-{}-.txt').format(loss), 'w') as f:
             f.write('Average loss over {} folds: {:.4f}'.format(FOLDS, loss))
@@ -315,11 +316,15 @@ def __evaluate__():
     print('Loading model from: %s' % model_dir)
     training_args = json.load(open(os.path.join(model_dir, 'training_args.json')))
 
-    trans = transforms.Compose([RandomCrop(CROP_LEN),
-                                # LabelOneHot(),
-                                ToTensor()])
+    CROP_LEN = training_args['crop_len']
 
-    test_set = EmbeddingsDataset(csv_path=TEST_DATASET_PATH, transform=trans)
+    trans = transforms.Compose([
+        RCSub(CROP_LEN),
+        # LabelOneHot(),
+        TTSub()
+    ])
+
+    test_set = EMBSubmission(csv_path=TEST_DATASET_PATH, transform=trans)
     test_loader = DataLoader(test_set, batch_size=len(test_set), num_workers=0, pin_memory=True)
     # Restore hyper parameters based on network type
     network_type = training_args['network']
@@ -347,8 +352,10 @@ def __evaluate__():
                   training_args['learning_rate'])
 
     # Load network trained parameters and evaluate
-    model.net.load_state_dict(torch.load(os.path.join(model_dir, 'checkpoint_0.132483.pt'))['state_dict'])
-    model.evaluate(test_loader)
+    model.net.load_state_dict(torch.load(os.path.join(model_dir, 'checkpoint_0.21349882_ep23.pt'))['state_dict'])
+    print(model.net.state_dict()['fc.weight'][0][0])
+    # model.evaluate(test_loader)
+    model.submit(test_loader, 'submission_local.csv')
 
 
 if __name__ == '__main__':
