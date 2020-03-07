@@ -1,13 +1,13 @@
 import argparse
 import json
 import os
+import random
 from itertools import product
 from typing import Dict
-import random
-import numpy as np
 
+import numpy as np
 import torch
-from torch.utils.data import random_split, DataLoader, SubsetRandomSampler, Subset
+from torch.utils.data import DataLoader, Subset
 from torchvision import transforms
 
 from training.dataset import EmbeddingsDataset, ToTensor, RandomCrop

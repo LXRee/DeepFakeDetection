@@ -1,21 +1,22 @@
-import torch
-from torch.utils.data import DataLoader
-from video_dataset import VideoDataset, collate_fn
-import pandas as pd
-from tqdm import tqdm
-import numpy as np
-import os
-from facenet_pytorch import MTCNN, InceptionResnetV1
-from asyncio.queues import Queue
 import asyncio
+import os
+from asyncio.queues import Queue
+
+import numpy as np
+import pandas as pd
+import torch
+from facenet_pytorch import MTCNN, InceptionResnetV1
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+
+from data_preparation.faces_extractor.video_dataset import VideoDataset, collate_fn
 
 DEVICE = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
 
-# Yield successive n-sized
-# chunks from l.
+# Yield successive n-sized chunks from l
 def list_chunks(l, n):
-    # looping till length l
+    # Looping till length l
     for i in range(0, len(l), n):
         yield l[i:i + n]
 
@@ -34,6 +35,7 @@ async def extract_faces(dataloader):
     """
     # Load face detector
     face_detector = MTCNN(margin=14, device=DEVICE).eval()
+
     # Define how many frames are going to be stored in GPU
     gpu_dim = 30
 
@@ -44,7 +46,8 @@ async def extract_faces(dataloader):
             for chunk in list_chunks(video_frame, gpu_dim):
                 # TODO: remember that this method is not working until pull request from facenet-pytorch is merged
                 # Change `chunk` with `[chunk[i] for i in range(chunk.shape[0]]`,it will be processed but less optimized
-                faces.extend([a if a is not None else torch.zeros((3, 160, 160)) for a in face_detector(chunk)])  # Do not skip None faces
+                faces.extend([a if a is not None else torch.zeros((3, 160, 160)) for a in
+                              face_detector(chunk)])  # Do not skip None faces
             # There may be more than one face in video. So we keep both in the first dimension
             # Torch likes (..., channels, h, w) so we keep these dimensions
             filename = os.path.basename(video_path)
@@ -57,11 +60,13 @@ async def extract_faces(dataloader):
 async def extract_faces_features(queue, feature_extractor, dest_path):
     """
     Extract features from faces crops. Retrieve asynchronously the features from each face
+    :param dest_path:
+    :param feature_extractor:
     :param queue: queue of faces
     :return:
     """
     while True:
-        # consume faces
+        # Consume faces
         info_faces = await queue.get()
         if info_faces is not None:
             filename = info_faces['filename']
@@ -72,8 +77,10 @@ async def extract_faces_features(queue, feature_extractor, dest_path):
                 # Add one empty frame
                 all_faces_embeddings = np.zeros((1, 512), 'float32')
             else:
-                # This method will process `number of faces per frame` at the same time, and store at the same embedding position
-                all_faces_embeddings = feature_extractor(torch.stack(faces_list, dim=0).to(DEVICE)).detach().cpu().numpy()
+                # This method will process `number of faces per frame` at the same time,
+                # and store at the same embedding position
+                all_faces_embeddings = feature_extractor(
+                    torch.stack(faces_list, dim=0).to(DEVICE)).detach().cpu().numpy()
             # Convert label into 1 if FAKE and 0 if REAL
             label = labels_dict[info_faces['label']]
             # Save video embeddings to single file
@@ -89,8 +96,7 @@ async def extract_faces_features(queue, feature_extractor, dest_path):
 
 async def data_producer(queue, dataloader):
     """
-    Create queue - not too big not to overload memory
-    Put data into queue
+    Create queue - not too big not to overload memory - and put data into queue
     """
     async for d in extract_faces(dataloader):
         await queue.put(d)
@@ -103,7 +109,8 @@ if __name__ == '__main__':
     dest_path = 'data/train_faces'
     dataloader = DataLoader(
         dataset,
-        # Keep batch size always > 1 since the custom collate function will skip None videos and it will fall back to the rest.
+        # Keep batch size always > 1 since the custom collate function
+        # will skip None videos and it will fall back to the rest
         batch_size=6,
         # sampler=Subset[0, 1, 2],
         num_workers=2,
@@ -124,5 +131,3 @@ if __name__ == '__main__':
 
     loop.run_until_complete(asyncio.gather(producer_coro, consumer_coro))
     loop.close()
-
-

@@ -1,10 +1,11 @@
-import os
 import json
-import cv2
+import os
 
-from custom_exceptions import NoFrames, NoFaces, NoVideo
+import cv2
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
+
+from data_preparation.faces_extractor.custom_exceptions import NoFrames, NoVideo
 
 
 class VideoDataset(Dataset):
@@ -12,7 +13,6 @@ class VideoDataset(Dataset):
         """
         Dataset to load videos and extract faces. I hope this class will make the process faster.
         This class will always take all the possible frames from each video.
-
         :param metadata_path: path to metadata file. It contains the path to all video files
         :param window: defines how many frames to skip between one take and another. 1: 0 frame skip, 2: 1 frame skipped
         :param resize: percentile of resize for frames. Too big frames lead to OOM
@@ -118,7 +118,6 @@ def collate_fn(batch):
 
 
 if __name__ == '__main__':
-    from PIL import Image
     dataset = VideoDataset('C:\\Users\\mawanda\\PyCharmProjects\\DeepFakeCompetition\\data\\train_data')
     dataloader = DataLoader(
         dataset,
@@ -135,6 +134,3 @@ if __name__ == '__main__':
         # print("Video_paths: {}".format(video_paths))
         # print("Video frames: {}".format(video_frames))
         # print("Video label: {}".format(labels))
-
-
-

@@ -1,5 +1,3 @@
-
-
 class BaseError(Exception):
     """
     Base error class for others
@@ -26,5 +24,3 @@ class NoVideo(BaseError):
     Call if video is missing
     """
     pass
-
-
