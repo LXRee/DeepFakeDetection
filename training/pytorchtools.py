@@ -6,6 +6,7 @@ class DeepFakeMetric(torch.nn.Module):
     """
     DeepFake competition metric: log-loss
     """
+
     def __init__(self):
         super(DeepFakeMetric, self).__init__()
         self.fn = torch.nn.BCEWithLogitsLoss()

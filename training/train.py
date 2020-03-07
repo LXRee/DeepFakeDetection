@@ -1,13 +1,13 @@
 import argparse
 import json
 import os
+import random
 from itertools import product
 from typing import Dict
-import random
-import numpy as np
 
+import numpy as np
 import torch
-from torch.utils.data import random_split, DataLoader, SubsetRandomSampler, Subset
+from torch.utils.data import DataLoader, Subset
 from torchvision import transforms
 
 from training.dataset import EmbeddingsDataset, ToTensor, RandomCrop
@@ -232,7 +232,7 @@ def do_the_job(parameters: Dict, dataset):
         losses = np.zeros(FOLDS, 'float32')
         # This indexes selection has been tested and the subsets are without overlapping indexes
         for i in range(FOLDS):
-            print("Training fold {}/{}".format(i+1, FOLDS))
+            print("Training fold {}/{}".format(i + 1, FOLDS))
             val_set = Subset(dataset, indexes[i * indexes_per_fold: (i + 1) * indexes_per_fold])
             train_set = Subset(dataset,
                                indexes[0: max(i - 1, 0) * indexes_per_fold] + indexes[(i + 1) * indexes_per_fold:])

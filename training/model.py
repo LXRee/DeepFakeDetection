@@ -185,13 +185,14 @@ class Model:
             end_epoch.record()
             torch.cuda.synchronize(DEVICE)
             print(
-                "Epoch: {}\ttrain: acc: {:.4f} loss: {:.4f}\t\tval: acc: {:.4f} loss: {:.4f}\ttime: {:.4}s".format(epoch,
-                                                                                                                  epoch_train_acc,
-                                                                                                                  epoch_train_loss,
-                                                                                                                  epoch_val_acc,
-                                                                                                                  epoch_val_loss,
-                                                                                                                  start_epoch.elapsed_time(
-                                                                                                                      end_epoch) / 1000))
+                "Epoch: {}\ttrain: acc: {:.4f} loss: {:.4f}\t\tval: acc: {:.4f} loss: {:.4f}\ttime: {:.4}s".format(
+                    epoch,
+                    epoch_train_acc,
+                    epoch_train_loss,
+                    epoch_val_acc,
+                    epoch_val_loss,
+                    start_epoch.elapsed_time(
+                        end_epoch) / 1000))
             # Update early stopping. This is really useful to stop training in time.
             # The if statement is not slowing down training since each epoch last very long.
             # PLEASE TAKE NOTE THAT we are using epoch_val_acc, since it brings the score function of the competition
