@@ -1,5 +1,6 @@
 import os
 from typing import Dict, Union
+import pandas as pd
 
 import torch
 from torch import nn
@@ -236,3 +237,37 @@ class Model:
                 epoch_test_acc = acc_fn(conc_out, conc_label)
 
                 print("Test:\tacc: {:.4f}\n\t\tloss: {:.4f}".format(epoch_test_acc, epoch_test_loss))
+        return conc_out
+
+    def submit(self, test_set: DataLoader, csv_file):
+        self.net: torch.nn.Module
+        net = self.net
+        # Put network in evaluation mode aka Dropout and BatchNorm are disabled
+        net.eval()
+        with torch.no_grad():
+            conc_out = []
+            filenames = []
+            # Do not update gradients
+            with torch.no_grad():
+                for batch in test_set:
+                    net_inputs = (batch['video_embedding'].to(DEVICE), batch['audio_embedding'].to(DEVICE))
+
+                    # Evaluate the network over the input
+                    net_outs = net(net_inputs)
+
+                    conc_out.append(net_outs)
+                    filenames.extend(batch['filename'])
+
+                conc_out = torch.cat(conc_out)
+
+        conc_out = torch.sigmoid(conc_out.squeeze()).detach().cpu().numpy()
+
+        df_dict = {}
+        for i, filename in enumerate(filenames):
+            df_dict[os.path.basename(filename)] = conc_out[i]
+
+        df = pd.DataFrame(columns=['filename', 'label'])
+        for i, filename_prob in enumerate(df_dict.items()):
+            df.loc[i] = filename_prob
+        print(df.shape)
+        df.to_csv(csv_file, index=False)
