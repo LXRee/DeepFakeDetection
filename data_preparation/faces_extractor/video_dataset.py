@@ -19,7 +19,7 @@ class VideoDataset(Dataset):
         :param transform: transforms for dataset
         """
         # Load metadata file
-        self.metadata = json.load(open(os.path.join(metadata_path, 'metadata.json'), 'r'))
+        self.metadata = json.load(open(metadata_path, 'r'))
         # Define path to all videos to access them with getitem
         self.path_to_all_videos = list(self.metadata.keys())
         # Define window: steps for reading video

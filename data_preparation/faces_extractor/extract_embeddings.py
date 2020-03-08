@@ -37,7 +37,7 @@ async def extract_faces(dataloader):
     face_detector = MTCNN(margin=14, device=DEVICE).eval()
 
     # Define how many frames are going to be stored in GPU
-    gpu_dim = 30
+    gpu_dim = 20
 
     for batch in tqdm(dataloader):
         for video_path, video_frame, label in zip(batch['video_path'], batch['frame'], batch['label']):
@@ -104,9 +104,9 @@ async def data_producer(queue, dataloader):
 
 
 if __name__ == '__main__':
-    dataset = VideoDataset('C:\\Users\\mawanda\\PyCharmProjects\\DeepFakeCompetition\\data\\train_data', 4)
+    dataset = VideoDataset('data\\train_data\\balanced_metadata.json', 2)
     # dataset = VideoDataset('C:\\Users\\mawanda\\Desktop\\prova', 6)
-    dest_path = 'data/train_faces'
+    dest_path = 'data\\train_data'
     dataloader = DataLoader(
         dataset,
         # Keep batch size always > 1 since the custom collate function
@@ -129,5 +129,5 @@ if __name__ == '__main__':
     producer_coro = data_producer(queue, dataloader)
     consumer_coro = extract_faces_features(queue, feature_extractor, dest_path)
 
-    loop.run_until_complete(asyncio.gather(producer_coro, consumer_coro))
+    loop.run_until_complete(asyncio.gather(producer_coro, consumer_coro, loop=loop))
     loop.close()
