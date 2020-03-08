@@ -29,11 +29,15 @@ def merge_metadata(source_path, dest_path):
         if metadata_path is not '':
             metadata = json.load(open(metadata_path, 'r'))
             for key, value in metadata.items():
-                all_meta[os.path.join(root_dir, key)] = value
+                p = os.path.join(root_dir, key)
+                if os.path.exists(p):
+                    all_meta[p] = value
+                else:
+                    print('{} not found!'.format(p))
 
-    # Select REAL videos and their information.
+    # Select REAL videos and their information and check if exists
     real_metadata = {k: v for k, v in all_meta.items() if v['label'] == 'REAL'}
-    # Select FAKE videos and their information. Plus, extract keys and shuffle them
+    # Select FAKE videos and their information and check if exists. Plus, extract keys and shuffle them.
     fake_metadata = {k: v for k, v in all_meta.items() if v['label'] == 'FAKE'}
     fake_meta_keys = list(fake_metadata.keys())
     random.shuffle(fake_meta_keys)
