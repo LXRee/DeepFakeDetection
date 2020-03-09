@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 
-from data_preparation.faces_extractor.custom_exceptions import NoFrames, NoVideo
+from custom_exceptions import NoFrames, NoVideo
 
 
 class VideoDataset(Dataset):
@@ -51,6 +51,8 @@ class VideoDataset(Dataset):
         self.transform = transform
         # Define list of error path to retrieve later if needed
         self.error_paths = []
+        # Define max number of frames to extract from each video. Considering 1 min -> 24fps * 60 sec = 1440
+        self.max_v_len = 1440
 
     def __len__(self):
         return len(self.path_to_all_videos)
@@ -76,7 +78,7 @@ class VideoDataset(Dataset):
             frames = []
 
             # Actually extract frames
-            for i in range(v_len):
+            for i in range(v_len)[:self.max_v_len]:
                 # Select next frame
                 _ = v_cap.grab()
                 if i % self.window == 0:

@@ -9,7 +9,7 @@ from facenet_pytorch import MTCNN, InceptionResnetV1
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from data_preparation.faces_extractor.video_dataset import VideoDataset, collate_fn
+from video_dataset import VideoDataset, collate_fn
 
 DEVICE = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 
@@ -37,52 +37,53 @@ def extract_faces_and_embeddings(dataloader, face_detector, feature_extractor, d
     :return:
     """
     # Define how many frames are going to be stored in GPU
-    gpu_dim = 25
+    mtcnn_gpu_dim = 48
+    incept_gpu_dim = 64
 
     for batch in tqdm(dataloader):
         for video_path, video_frame, label in zip(batch['video_path'], batch['frame'], batch['label']):
-            # Check if embedding has already been done
+            faces = []
+            # Chunk frame list to fill them into the GPU
+            for chunk in list_chunks(video_frame, mtcnn_gpu_dim):
+                # TODO: remember that this method is not working until pull request from facenet-pytorch is merged
+                # Change `chunk` with `[chunk[i] for i in range(chunk.shape[0]]`,it will be processed but less optimized
+                faces.extend([a if a is not None else torch.zeros((3, 160, 160)) for a in
+                              face_detector(chunk)])  # Do not skip None faces
+            # Torch likes (..., channels, h, w) so we keep these dimensions
+            # Empty CUDA cache to let the feature extractor perform well.
+            torch.cuda.empty_cache()
+            all_faces_embeddings = []
+            if not faces:
+                # Add one empty frame
+                all_faces_embeddings = np.zeros((1, 512), 'float32')
+            else:
+                # This method will process `number of faces per frame` at the same time,
+                # and store at the same embedding position
+                for chunk in list_chunks(faces, incept_gpu_dim):
+                    all_faces_embeddings.extend(feature_extractor(
+                        torch.stack(chunk, dim=0).to(DEVICE)).detach().cpu().numpy())
+            # Convert label into 1 if FAKE and 0 if REAL
+            label = labels_dict[label]
+            # Save video embeddings to single file
+            df = pd.DataFrame(columns=['filename', 'video_embedding', 'label'])
             filename = os.path.basename(video_path)
             path = os.path.join(dest_path, filename.split('.')[0] + '.csv')
-            if not os.path.exists(path):
-                faces = []
-                # Chunk frame list to fill them into the GPU
-                for chunk in list_chunks(video_frame, gpu_dim):
-                    # TODO: remember that this method is not working until pull request from facenet-pytorch is merged
-                    # Change `chunk` with `[chunk[i] for i in range(chunk.shape[0]]`,it will be processed but less optimized
-                    faces.extend([a if a is not None else torch.zeros((3, 160, 160)) for a in
-                                  face_detector(chunk)])  # Do not skip None faces
-                # Torch likes (..., channels, h, w) so we keep these dimensions
-                # Empty CUDA cache to let the feature extractor perform well.
-                torch.cuda.empty_cache()
-                if not faces:
-                    # Add one empty frame
-                    all_faces_embeddings = np.zeros((1, 512), 'float32')
-                else:
-                    # This method will process `number of faces per frame` at the same time,
-                    # and store at the same embedding position
-                    all_faces_embeddings = feature_extractor(
-                        torch.stack(faces, dim=0).to(DEVICE)).detach().cpu().numpy()
-                # Convert label into 1 if FAKE and 0 if REAL
-                label = labels_dict[label]
-                # Save video embeddings to single file
-                df = pd.DataFrame(columns=['filename', 'video_embedding', 'label'])
-                df.loc[0] = [filename, all_faces_embeddings, label]
-                df.to_pickle(path)
-                # Free up CUDA memory after work is done.
-                torch.cuda.empty_cache()
+            df.loc[0] = [filename, all_faces_embeddings, label]
+            df.to_pickle(path)
+            # Free up CUDA memory after work is done.
+            torch.cuda.empty_cache()
 
 
 if __name__ == '__main__':
-    dest_path = 'data\\train_data'
+    dest_path = 'dataset\\video_embeddings'
     dataset = VideoDataset('data\\train_data\\balanced_metadata.json', 2, check_path=dest_path)
     dataloader = DataLoader(
         dataset,
         # Keep batch size always > 1 since the custom collate function
         # will skip None videos and it will fall back to the rest
-        batch_size=6,
+        batch_size=2,
         # sampler=Subset[0, 1, 2],
-        num_workers=2,
+        num_workers=4,
         pin_memory=True,
         collate_fn=collate_fn
     )
