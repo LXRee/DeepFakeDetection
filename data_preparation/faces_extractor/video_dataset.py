@@ -9,7 +9,7 @@ from data_preparation.faces_extractor.custom_exceptions import NoFrames, NoVideo
 
 
 class VideoDataset(Dataset):
-    def __init__(self, metadata_path, window=1, resize=0.5, transform=None):
+    def __init__(self, metadata_path, window=1, resize=0.5, transform=None, check_path=None):
         """
         Dataset to load videos and extract faces. I hope this class will make the process faster.
         This class will always take all the possible frames from each video.
@@ -17,9 +17,29 @@ class VideoDataset(Dataset):
         :param window: defines how many frames to skip between one take and another. 1: 0 frame skip, 2: 1 frame skipped
         :param resize: percentile of resize for frames. Too big frames lead to OOM
         :param transform: transforms for dataset
+        :param check_path: path/to/folder where the embeddings has been created. This is useful in order to avoid to
+        redo a previously calculated embedding.
         """
         # Load metadata file
         self.metadata = json.load(open(metadata_path, 'r'))
+        # Sanitize paths that has already been transformed
+        # Take only file name without extension and sort them for more performance
+        done = [os.path.basename(x).split('.')[0] for x in os.listdir(check_path)]
+        done.sort()
+        # Create empty list for key deletion
+        delete = []
+        # Retrieve list of metadata keys and sort them by file name
+        metadata_keys = list(self.metadata.keys())
+        metadata_keys.sort(key=lambda x: os.path.basename(x))
+        # Check each path in metadata and compare to check_path dir. Each time it finds an element, it does not consider
+        # it anymore since it starts from the previous element.
+        for p in metadata_keys:
+            p_name = os.path.basename(p).split('.')[0]
+            if p_name in done[len(delete):]:
+                delete.append(p)
+        for d in delete:
+            self.metadata.pop(d)
+
         # Define path to all videos to access them with getitem
         self.path_to_all_videos = list(self.metadata.keys())
         # Define window: steps for reading video

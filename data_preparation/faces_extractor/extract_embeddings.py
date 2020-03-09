@@ -24,89 +24,58 @@ def list_chunks(l, n):
 labels_dict = {'FAKE': 1, 'REAL': 0}
 
 
-async def extract_faces(dataloader):
+def extract_faces_and_embeddings(dataloader, face_detector, feature_extractor, dest_path):
     """
     Extract faces from frames. Each face will come be outputted as (n_frames, channels, height, width).
     This method yields a dictionary containing the filename, the faces vector and the label, FAKE or REAL.
     If there are no faces, the array remains empty. We should keep it as the same, in order to use the audio part.
     Some frames may not contain any face. In that case, we don't skip them but add an empty frame
     :param dataloader: dataloader for videos
+    :param face_detector: detector of faces. It returns a list of faces, one for each frame from dataloader
+    :param feature_extractor: feature extractor from faces. It returns a 512-long embedding for each face
+    :param dest_path: path/to/folder where to save the embeddings, one for each video.
     :return:
     """
-    # Load face detector
-    face_detector = MTCNN(margin=14, device=DEVICE).eval()
-
     # Define how many frames are going to be stored in GPU
-    gpu_dim = 20
+    gpu_dim = 25
 
     for batch in tqdm(dataloader):
         for video_path, video_frame, label in zip(batch['video_path'], batch['frame'], batch['label']):
-            faces = []
-            # Chunk frame list to fill them into the GPU
-            for chunk in list_chunks(video_frame, gpu_dim):
-                # TODO: remember that this method is not working until pull request from facenet-pytorch is merged
-                # Change `chunk` with `[chunk[i] for i in range(chunk.shape[0]]`,it will be processed but less optimized
-                faces.extend([a if a is not None else torch.zeros((3, 160, 160)) for a in
-                              face_detector(chunk)])  # Do not skip None faces
-            # There may be more than one face in video. So we keep both in the first dimension
-            # Torch likes (..., channels, h, w) so we keep these dimensions
+            # Check if embedding has already been done
             filename = os.path.basename(video_path)
-            label = label
-
-            yield {'filename': filename, 'faces': faces, 'label': label}
-            torch.cuda.empty_cache()
-
-
-async def extract_faces_features(queue, feature_extractor, dest_path):
-    """
-    Extract features from faces crops. Retrieve asynchronously the features from each face
-    :param dest_path:
-    :param feature_extractor:
-    :param queue: queue of faces
-    :return:
-    """
-    while True:
-        # Consume faces
-        info_faces = await queue.get()
-        if info_faces is not None:
-            filename = info_faces['filename']
-            # Remember that faces = list(n_frames) with (n_faces, height, width, channels), therefore we are going
-            # to create a new embedding for each face.
-            faces_list = info_faces['faces']
-            if not faces_list:
-                # Add one empty frame
-                all_faces_embeddings = np.zeros((1, 512), 'float32')
-            else:
-                # This method will process `number of faces per frame` at the same time,
-                # and store at the same embedding position
-                all_faces_embeddings = feature_extractor(
-                    torch.stack(faces_list, dim=0).to(DEVICE)).detach().cpu().numpy()
-            # Convert label into 1 if FAKE and 0 if REAL
-            label = labels_dict[info_faces['label']]
-            # Save video embeddings to single file
-            df = pd.DataFrame(columns=['filename', 'video_embedding', 'label'])
-            df.loc[0] = [filename, all_faces_embeddings, label]
             path = os.path.join(dest_path, filename.split('.')[0] + '.csv')
-            df.to_pickle(path)
-            # Notify when the "work item" has been processed
-            queue.task_done()
-        else:
-            break
-
-
-async def data_producer(queue, dataloader):
-    """
-    Create queue - not too big not to overload memory - and put data into queue
-    """
-    async for d in extract_faces(dataloader):
-        await queue.put(d)
-    await queue.put(None)
+            if not os.path.exists(path):
+                faces = []
+                # Chunk frame list to fill them into the GPU
+                for chunk in list_chunks(video_frame, gpu_dim):
+                    # TODO: remember that this method is not working until pull request from facenet-pytorch is merged
+                    # Change `chunk` with `[chunk[i] for i in range(chunk.shape[0]]`,it will be processed but less optimized
+                    faces.extend([a if a is not None else torch.zeros((3, 160, 160)) for a in
+                                  face_detector(chunk)])  # Do not skip None faces
+                # Torch likes (..., channels, h, w) so we keep these dimensions
+                # Empty CUDA cache to let the feature extractor perform well.
+                torch.cuda.empty_cache()
+                if not faces:
+                    # Add one empty frame
+                    all_faces_embeddings = np.zeros((1, 512), 'float32')
+                else:
+                    # This method will process `number of faces per frame` at the same time,
+                    # and store at the same embedding position
+                    all_faces_embeddings = feature_extractor(
+                        torch.stack(faces, dim=0).to(DEVICE)).detach().cpu().numpy()
+                # Convert label into 1 if FAKE and 0 if REAL
+                label = labels_dict[label]
+                # Save video embeddings to single file
+                df = pd.DataFrame(columns=['filename', 'video_embedding', 'label'])
+                df.loc[0] = [filename, all_faces_embeddings, label]
+                df.to_pickle(path)
+                # Free up CUDA memory after work is done.
+                torch.cuda.empty_cache()
 
 
 if __name__ == '__main__':
-    dataset = VideoDataset('data\\train_data\\balanced_metadata.json', 2)
-    # dataset = VideoDataset('C:\\Users\\mawanda\\Desktop\\prova', 6)
     dest_path = 'data\\train_data'
+    dataset = VideoDataset('data\\train_data\\balanced_metadata.json', 2, check_path=dest_path)
     dataloader = DataLoader(
         dataset,
         # Keep batch size always > 1 since the custom collate function
@@ -117,17 +86,9 @@ if __name__ == '__main__':
         pin_memory=True,
         collate_fn=collate_fn
     )
-    # extract_faces(dataloader)
-
+    # Load Face detector
+    face_detector = MTCNN(margin=14, device=DEVICE).eval()
     # Load facial recognition model
     feature_extractor = InceptionResnetV1(pretrained='vggface2', device=DEVICE).eval()
-
-    # Create async queue to process videos and embeddings concurrently
-    # Reference: https://asyncio.readthedocs.io/en/latest/producer_consumer.html
-    loop = asyncio.get_event_loop()
-    queue = Queue(10, loop=loop)
-    producer_coro = data_producer(queue, dataloader)
-    consumer_coro = extract_faces_features(queue, feature_extractor, dest_path)
-
-    loop.run_until_complete(asyncio.gather(producer_coro, consumer_coro, loop=loop))
-    loop.close()
+    # Extract faces and embeddings
+    extract_faces_and_embeddings(dataloader, face_detector, feature_extractor, dest_path)
