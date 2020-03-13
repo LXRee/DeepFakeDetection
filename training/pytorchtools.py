@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import torch.nn.functional as F
 
 
 class DeepFakeMetric(torch.nn.Module):
@@ -9,9 +10,11 @@ class DeepFakeMetric(torch.nn.Module):
 
     def __init__(self):
         super(DeepFakeMetric, self).__init__()
-        self.fn = torch.nn.BCEWithLogitsLoss()
+        # self.fn = torch.nn.BCEWithLogitsLoss()
+        self.fn = F.cross_entropy
 
     def forward(self, outputs: torch.Tensor, labels: torch.Tensor, **kwargs):
+        # outputs = torch.max(F.softmax(outputs, dim=1), dim=1)[0]
         return self.fn(outputs, labels)
         # outputs = torch.sigmoid(outputs).long()
         # labels = labels.long()

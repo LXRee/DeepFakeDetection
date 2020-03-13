@@ -37,7 +37,7 @@ def extract_faces_and_embeddings(dataloader, face_detector, feature_extractor, d
     :return:
     """
     # Define how many frames are going to be stored in GPU
-    mtcnn_gpu_dim = 48
+    mtcnn_gpu_dim = 8
     incept_gpu_dim = 64
 
     for batch in tqdm(dataloader):

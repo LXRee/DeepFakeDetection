@@ -31,10 +31,6 @@ class Model:
 
         self.acc, self.loss, self.optimizer, self.net = self.__build_model()
 
-        self.train_loss_log = torch.tensor([]).to(DEVICE)
-        self.val_loss_log = torch.tensor([]).to(DEVICE)
-        self.test_loss_log = torch.tensor([]).to(DEVICE)
-
     def __build_model(self) -> (torch.Tensor, torch.optim, nn.Module):
         """
         Build Torch network, loss and its optimizer.
@@ -83,13 +79,13 @@ class Model:
         if self.__optimizer_type == "SGD":
             optimizer = torch.optim.SGD(network.parameters(), lr=self.learning_rate, momentum=0.9)
         elif self.__optimizer_type == 'adam':
-            optimizer = torch.optim.Adam(network.parameters(), lr=self.learning_rate, weight_decay=1e-5)
+            optimizer = torch.optim.Adam(network.parameters(), lr=self.learning_rate, weight_decay=1e-6)
         else:
             raise ValueError("{} is not implemented yet".format(self.__optimizer_type))
 
         return acc_fn, loss_fn, optimizer, network
 
-    def save(self, run_path: str = "exp0", loss_value: float = 10, epoch: int = 0):
+    def save(self, run_path: str = "exp0", metric: float = 10, epoch: int = 0):
         """
         Saves only Torch model parameters. To restore Torch training it is better to see "save"
         Save the state_dict only if you want to continue training from a certain point.
@@ -101,7 +97,7 @@ class Model:
             # 'optim_dict': self.optimizer.state_dict()
         }
         self.net: nn.Module
-        filepath = os.path.join(run_path, 'checkpoint_' + str(loss_value) + '_ep' + str(epoch) + '.pt')
+        filepath = os.path.join(run_path, 'checkpoint_' + str(metric) + '_ep' + str(epoch) + '.pt')
         torch.save(state, filepath)
 
     def fit(self, epochs: int, train_set: DataLoader, val_set: DataLoader, patience: int = 20, run_name: str = None):
@@ -139,8 +135,8 @@ class Model:
                 net_outs = net(net_inputs).squeeze()
 
                 # Update network
-                loss = loss_fn(net_outs, labels)
-                acc = acc_fn(net_outs, labels)
+                loss = loss_fn(net_outs, labels.long())
+                acc = acc_fn(net_outs, labels.long())
 
                 # Eventually clear previous recorded gradients
                 optimizer.zero_grad()
@@ -160,8 +156,8 @@ class Model:
 
             # Update scheduler outside batch loop
             scheduler.step(epoch)
-            epoch_train_loss = torch.mean(torch.stack(conc_losses))
-            epoch_train_acc = torch.mean(torch.stack(conc_acc))
+            epoch_train_loss = torch.mean(torch.stack(conc_losses)).float()
+            epoch_train_acc = torch.mean(torch.stack(conc_acc)).float()
 
             # Validation
             net.eval()
@@ -180,8 +176,8 @@ class Model:
 
                 conc_out = torch.cat(conc_out)
                 conc_label = torch.cat(conc_label)
-                epoch_val_loss = loss_fn(conc_out, conc_label)
-                epoch_val_acc = acc_fn(conc_out, conc_label)
+                epoch_val_loss = loss_fn(conc_out, conc_label.long()).float()
+                epoch_val_acc = acc_fn(conc_out, conc_label.long()).float()
 
             end_epoch.record()
             torch.cuda.synchronize(DEVICE)
@@ -197,9 +193,10 @@ class Model:
             # Update early stopping. This is really useful to stop training in time.
             # The if statement is not slowing down training since each epoch last very long.
             # PLEASE TAKE NOTE THAT we are using epoch_val_acc, since it brings the score function of the competition
-            early_stopping(epoch_val_acc, self.net)
+            float_epoch_val_acc = epoch_val_loss.detach().cpu().numpy()
+            early_stopping(float_epoch_val_acc, self.net)
             if early_stopping.save_checkpoint and run_name:
-                self.save(run_name, epoch_val_acc.cpu().detach().numpy(), epoch)
+                self.save(run_name, float_epoch_val_acc, epoch)
             if early_stopping.early_stop:
                 print("Early stopping")
                 break
@@ -234,7 +231,7 @@ class Model:
 
                 conc_out = torch.cat(conc_out)
                 conc_label = torch.cat(conc_label)
-                epoch_test_loss = loss_fn(conc_out, conc_label.long())
+                epoch_test_loss = loss_fn(conc_out, conc_label)
                 epoch_test_acc = acc_fn(conc_out, conc_label)
 
                 print("Test:\tacc: {:.4f}\n\t\tloss: {:.4f}".format(epoch_test_acc, epoch_test_loss))
@@ -261,7 +258,7 @@ class Model:
 
                 conc_out = torch.cat(conc_out)
 
-        conc_out = torch.sigmoid(conc_out.squeeze()).detach().cpu().numpy()
+        conc_out = torch.softmax(conc_out, dim=1).T[1].detach().cpu().numpy()
 
         df_dict = {}
         for i, filename in enumerate(filenames):
@@ -271,4 +268,6 @@ class Model:
         for i, filename_prob in enumerate(df_dict.items()):
             df.loc[i] = filename_prob
         print(df.shape)
+        print(df.head())
         df.to_csv(csv_file, index=False)
+        # df.to_csv(csv_file)

@@ -12,7 +12,7 @@ class LSTMNetwork(nn.Module):
                  layers_num,
                  fc_dim,
                  video_embedding_dim=512,
-                 audio_embedding_dim=50,
+                 audio_embedding_dim=256,
                  dropout_prob=0.):
         # Call the parent init function (required!)
         super().__init__()
@@ -28,10 +28,10 @@ class LSTMNetwork(nn.Module):
         self.fc = nn.Linear(hidden_units + audio_embedding_dim, fc_dim)
 
         # dropout layer after linear layer
-        # self.dropout = nn.Dropout(dropout_prob)
+        self.dropout = nn.Dropout(dropout_prob)
 
         # Define output layer
-        self.out = nn.Linear(fc_dim, 1)
+        self.out = nn.Linear(fc_dim, 2)
 
     def forward(self, inputs, state=None):
         # LSTM for video information
@@ -41,7 +41,7 @@ class LSTMNetwork(nn.Module):
         # We want to consider only the last time step for video since we want to understand what the LSTM has seen
         x = self.fc(torch.cat([x[:, -1, :], inputs[1]], dim=1))
 
-        # x = self.dropout(x)
+        x = self.dropout(x)
 
         # Linear layer
         x = self.out(F.relu(x))
@@ -57,7 +57,7 @@ class TransformerNetwork(nn.Module):
                  dropout_prob,
                  fc_dim,
                  video_embedding_dim,
-                 audio_embedding_dim=50, ):
+                 audio_embedding_dim=256, ):
         # Call the parent init function (required!)
         super().__init__()
 
@@ -74,7 +74,7 @@ class TransformerNetwork(nn.Module):
         # self.dropout = nn.Dropout(dropout_prob)
 
         # Define output layer
-        self.out = nn.Linear(fc_dim, 1)
+        self.out = nn.Linear(fc_dim, 2)
 
     def forward(self, inputs, state=None):
         # LSTM for video information

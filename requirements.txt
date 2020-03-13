@@ -7,3 +7,4 @@ numpy
 torchvision
 torch
 tables
+resemblyzer

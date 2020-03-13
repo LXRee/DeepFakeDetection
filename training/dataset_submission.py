@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import gc
 
 import numpy as np
@@ -13,9 +15,9 @@ class EmbeddingsDataset(Dataset):
         # Contains all data. Dict so we speedup reading from memory
         data = pd.read_pickle(csv_path)
         self.__data = {
-            key: [values[0], np.array(values[1]) if isinstance(values[1], list) else values[1], values[2], values[3]]
+            key: [values[0], np.array(values[1]) if isinstance(values[1], list) else values[1], values[2]]
             for key, values in enumerate(
-                zip(data['filename'], data['video_embedding'], data['audio_embedding'], data['label']))}
+                zip(data['filename'], data['video_embedding'], data['audio_embedding']))}
 
         # Code for h5py version
         # self.path = csv_path
@@ -23,10 +25,7 @@ class EmbeddingsDataset(Dataset):
         # if shuffle:
         #     np.random.shuffle(self.__locs)
         # Use pos_weight value to overcome imbalanced dataset.
-        pos_labels = np.array(data['label']).sum()
-        # https://pytorch.org/docs/stable/nn.html#torch.nn.BCEWithLogitsLoss
-        self.__pos_weight = (data['label'].shape[0] - pos_labels) / pos_labels
-        # self.__pos_weight = 1.
+        self.__pos_weight = 1.
 
         # Force garbage collector to get rid of the data
         data = None
@@ -53,10 +52,9 @@ class EmbeddingsDataset(Dataset):
         #         'label': f['label'][idx]
         #     }
         sample = {
-            'filename': self.__data[idx][0],
-            'video_embedding': self.__data[idx][1],
-            'audio_embedding': self.__data[idx][2],
-            'label': self.__data[idx][3]
+                'filename': self.__data[idx][0],
+                'video_embedding': self.__data[idx][1],
+                'audio_embedding': self.__data[idx][2],
         }
 
         # Transform (if defined)
@@ -88,19 +86,7 @@ class ToTensor:
         video_embedding = torch.tensor(sample['video_embedding']).float()
         audio_embedding = torch.tensor(sample['audio_embedding']).float()
         # audio_embedding = torch.tensor(np.zeros_like(sample['audio_embedding'])).float()
-        label = torch.tensor(sample['label']).float()
-        return {**sample, 'video_embedding': video_embedding, 'audio_embedding': audio_embedding, 'label': label}
-
-
-class LabelOneHot:
-    def __init__(self):
-        self.l = {
-            0: np.array([0, 1], dtype='uint8'),
-            1: np.array([1, 0], dtype='uint8')
-        }
-
-    def __call__(self, sample):
-        return {**sample, 'label': self.l[sample['label']]}
+        return {**sample, 'video_embedding': video_embedding, 'audio_embedding': audio_embedding}
 
 
 if __name__ == '__main__':
