@@ -5,7 +5,7 @@ import subprocess
 import json
 from tqdm import tqdm
 
-from data_preparation.utils.make_chunks import list_chunks
+from utils import list_chunks
 
 
 def extract_audio_from_chunk(file_paths: list, output_path):
@@ -22,17 +22,14 @@ def extract_audio_from_chunk(file_paths: list, output_path):
         _ = p.communicate()
 
 
-def extract_audios_from_videos(metadata_path, output_path):
+def extract_audios_from_videos(path_list, output_path):
     """
     Extract audio from video that are listed in metadata_path
-    :param metadata_path: path/to/metadata.json containing training information
+    :param path_list: list of paths to videos
     :param output_path: path/to/dest/folder for the created wav files
     :return:
     """
-    # Load metadata file
-    metadata = json.load(open(metadata_path, 'r'))
-    # Retrieve all the paths contained in metadata
-    path_list = list(metadata.keys())
+
     processors = mp.cpu_count()
     pool = mp.Pool(processes=processors)
     paths_chunks = list_chunks(path_list, len(path_list) // processors)
@@ -42,6 +39,16 @@ def extract_audios_from_videos(metadata_path, output_path):
 
 if __name__ == '__main__':
     print("\nExtracting WAW audio files from videos...\n")
-    metadata_path = os.path.join('data', 'train_data', 'balanced_metadata.json')
-    dest_path = os.path.join('data', 'train_audio')
-    extract_audios_from_videos(metadata_path, dest_path)
+    # # To extract audio with the help of metadata.json
+    # metadata_path = os.path.join('data', 'train_data', 'balanced_metadata.json')
+    # # Load metadata file
+    # metadata = json.load(open(metadata_path, 'r'))
+    # # Retrieve all the paths contained in metadata
+    # path_list = list(metadata.keys())
+    # dest_path = os.path.join('data', 'train_audio')
+
+    # To extract audio from other sources
+    folder = os.path.join('data', 'youtube_celebrities')
+    dest_path = os.path.join('data', 'youtube_celebrities_audio')
+    path_list = [os.path.join(folder, filename) for filename in os.listdir(folder)]
+    extract_audios_from_videos(path_list, dest_path)
