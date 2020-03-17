@@ -135,8 +135,8 @@ class Model:
                 net_outs = net(net_inputs).squeeze()
 
                 # Update network
-                loss = loss_fn(net_outs, labels.long())
-                acc = acc_fn(net_outs, labels.long())
+                loss = loss_fn(net_outs, labels)
+                acc = acc_fn(net_outs, labels)
 
                 # Eventually clear previous recorded gradients
                 optimizer.zero_grad()
@@ -176,8 +176,8 @@ class Model:
 
                 conc_out = torch.cat(conc_out)
                 conc_label = torch.cat(conc_label)
-                epoch_val_loss = loss_fn(conc_out, conc_label.long()).float()
-                epoch_val_acc = acc_fn(conc_out, conc_label.long()).float()
+                epoch_val_loss = loss_fn(conc_out, conc_label).float()
+                epoch_val_acc = acc_fn(conc_out, conc_label).float()
 
             end_epoch.record()
             torch.cuda.synchronize(DEVICE)
@@ -194,7 +194,8 @@ class Model:
             # The if statement is not slowing down training since each epoch last very long.
             # PLEASE TAKE NOTE THAT we are using epoch_val_acc, since it brings the score function of the competition
             float_epoch_val_acc = epoch_val_loss.detach().cpu().numpy()
-            early_stopping(float_epoch_val_acc, self.net)
+            float_epoch_train_acc = epoch_train_loss.detach().cpu().numpy()
+            early_stopping(float_epoch_train_acc, float_epoch_val_acc, self.net)
             if early_stopping.save_checkpoint and run_name:
                 self.save(run_name, float_epoch_val_acc, epoch)
             if early_stopping.early_stop:
@@ -265,8 +266,13 @@ class Model:
             df_dict[os.path.basename(filename)] = conc_out[i]
 
         df = pd.DataFrame(columns=['filename', 'label'])
-        for i, filename_prob in enumerate(df_dict.items()):
-            df.loc[i] = filename_prob
+
+        filename_list = list(df_dict.keys())
+        filename_list.sort()
+
+        for i, filename in enumerate(filename_list):
+            df.loc[i] = [filename, df_dict[filename]]
+
         print(df.shape)
         print(df.head())
         df.to_csv(csv_file, index=False)
