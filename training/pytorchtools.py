@@ -10,8 +10,8 @@ class DeepFakeMetric(torch.nn.Module):
 
     def __init__(self):
         super(DeepFakeMetric, self).__init__()
-        # self.fn = torch.nn.BCEWithLogitsLoss()
-        self.fn = F.cross_entropy
+        self.fn = torch.nn.BCEWithLogitsLoss()
+        # self.fn = F.cross_entropy
 
     def forward(self, outputs: torch.Tensor, labels: torch.Tensor, **kwargs):
         # outputs = torch.max(F.softmax(outputs, dim=1), dim=1)[0]
@@ -49,7 +49,7 @@ class EarlyStopping:
         self.delta = delta
         self.save_checkpoint = False
 
-    def __call__(self, val_loss, model=None):
+    def __call__(self, train_loss, val_loss, model=None):
 
         score = -val_loss
 
@@ -57,7 +57,7 @@ class EarlyStopping:
             self.best_score = score
             self.save_checkpoint = True
             self.val_loss_min = val_loss
-        elif score < self.best_score + self.delta:
+        elif score < self.best_score + self.delta and train_loss < val_loss:
             self.counter += 1
             # print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
             if self.counter >= self.patience:

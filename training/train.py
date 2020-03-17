@@ -26,7 +26,7 @@ parser = argparse.ArgumentParser(description='Train the deepfake network.')
 # Dataset
 parser.add_argument('--datasetpath',
                     type=str,
-                    default='dataset/part_train_audio_video_embeddings.csv',
+                    default='dataset/train_audio_video_embeddings.csv',
                     help='Path of the train csv folder')
 parser.add_argument('--testdatasetpath',
                     type=str,
@@ -40,7 +40,7 @@ parser.add_argument('--crop_len',
 # Network structure
 parser.add_argument('--video_embedding_dim', type=int, default=512, help='Dimension of features vector of video')
 parser.add_argument('--audio_embedding_dim', type=int, default=256, help='Dimension of features vector of audio')
-parser.add_argument('--network', type=str, default='LSTM', help='Network to use')
+parser.add_argument('--network', type=str, default='transformer', help='Network to use')
 
 # Model hyperparameters
 parser.add_argument('--fc_dim', type=int, default=512, help='Dimension of last FC layer that collects video and audio')
@@ -58,14 +58,14 @@ parser.add_argument('--enc_layers', type=int, default=6, help='The number of sub
 # Training parameters
 parser.add_argument('--batchsize', type=int, default=128, help='Training batch size')
 parser.add_argument('--optimizer', type=str, default='adam', help='Type of optimizer')
-parser.add_argument('--loss_type', type=str, default='crossentropy', help='Loss type')
+parser.add_argument('--loss_type', type=str, default='BCE', help='Loss type')
 parser.add_argument('--val_size', type=float, default=.3, help='Dimension of validation')
 parser.add_argument('--learning_rate', type=float, default=1e-5, help='Learning rate')
 parser.add_argument('--num_epochs', type=int, default=100000, help='Number of training epochs')
-parser.add_argument('--patience', type=int, default=5, help='Patience to use in EarlyStopping')
+parser.add_argument('--patience', type=int, default=2, help='Patience to use in EarlyStopping')
 
 # Save
-parser.add_argument('--model_dir', type=str, default='TESTcrop40_hid512_ln2_lr0.001_fc512_batch256_drop0.5', help='Where to load from models and params')
+parser.add_argument('--model_dir', type=str, default='crop80_hid512_ln2_lr0.001_fc512_batch256_drop0.5', help='Where to load from models and params')
 
 args = parser.parse_args()
 NETWORK = args.network
@@ -100,18 +100,18 @@ PATIENCE = args.patience
 # These hyperparameters overwrite the one parsed by argparse, so you should change
 # their values here.
 crop_len = [40]
-learning_rate = [1e-3]
+learning_rate = [1e-4, 1e-5]
 dropout_prob = [0.5]
 batch_size = [256]
 fc_dim = [512]
 
 if NETWORK == 'LSTM':
-    hidden_units = [512]
-    layers_num = [2]
+    hidden_units = [2048]
+    layers_num = [2, 3]
 elif NETWORK == 'transformer':
-    n_head = [8]
-    dim_feedforward = [2048]
-    enc_layers = [6]
+    n_head = [8, 16]
+    dim_feedforward = [256, 512, 1024]
+    enc_layers = [2]
 else:
     raise ValueError('{} network has not been implemented yet. Please choose between "LSTM" and "transformer"')
 
@@ -161,7 +161,7 @@ def do_the_job(parameters: Dict, dataset):
         HIDDEN_UNITS = parameters['hidden_units']
         LAYERS_NUM = parameters['layers_num']
         RUN_PATH = os.path.join('source', 'training', 'experiments', NETWORK,
-                                'TESTcrop{crop}_hid{hid}_ln{ln}_lr{lr}_fc{fc}_batch{b}_drop{d}'
+                                'crop{crop}_hid{hid}_ln{ln}_lr{lr}_fc{fc}_batch{b}_drop{d}'
                                 .format(crop=CROP_LEN,
                                         hid=HIDDEN_UNITS,
                                         ln=LAYERS_NUM,
@@ -227,7 +227,7 @@ def do_the_job(parameters: Dict, dataset):
         # Prepare for kFold
         indexes = list(range(dataset_len))
         random.shuffle(indexes)
-        indexes_per_fold = round(dataset_len * VAL_SIZE)
+        indexes_per_fold = int(dataset_len * VAL_SIZE)
 
         # define loss array
         losses = np.zeros(FOLDS, 'float32')
@@ -353,11 +353,11 @@ def __evaluate__():
                   training_args['learning_rate'])
 
     # Load network trained parameters and evaluate
-    model.net.load_state_dict(torch.load(os.path.join(model_dir, 'checkpoint_0.27046832_ep14.pt'))['state_dict'])
+    model.net.load_state_dict(torch.load(os.path.join(model_dir, 'checkpoint_0.2840127_ep28.pt'))['state_dict'])
     # model.evaluate(test_loader)
     model.submit(test_loader, 'submission.csv')
 
 
 if __name__ == '__main__':
-    # __train__()
-    __evaluate__()
+    __train__()
+    # __evaluate__()
