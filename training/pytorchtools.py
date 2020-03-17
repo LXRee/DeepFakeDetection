@@ -3,6 +3,19 @@ import torch
 import torch.nn.functional as F
 
 
+class SiameseMetric(torch.nn.Module):
+    """
+    DeepFake competition metric: log-loss
+    """
+
+    def __init__(self):
+        super(SiameseMetric, self).__init__()
+        self.fn = F.cross_entropy
+
+    def forward(self, outputs: torch.Tensor, labels: torch.Tensor, **kwargs):
+        return self.fn(outputs, labels)
+
+
 class DeepFakeMetric(torch.nn.Module):
     """
     DeepFake competition metric: log-loss
@@ -10,8 +23,8 @@ class DeepFakeMetric(torch.nn.Module):
 
     def __init__(self):
         super(DeepFakeMetric, self).__init__()
-        # self.fn = torch.nn.BCEWithLogitsLoss()
-        self.fn = F.cross_entropy
+        self.fn = torch.nn.BCEWithLogitsLoss()
+        # self.fn = F.cross_entropy
 
     def forward(self, outputs: torch.Tensor, labels: torch.Tensor, **kwargs):
         # outputs = torch.max(F.softmax(outputs, dim=1), dim=1)[0]
