@@ -87,7 +87,7 @@ class VideoDataset(Dataset):
 
                     # Skip frame if retrieve is not successful
                     if not success:
-                        continue
+                        continue  # TODO: debug how many times it happens
 
                     # Decode and resize frame
                     frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
