@@ -38,6 +38,6 @@ def find_best_checkpoint(experiments_path):
 
 
 if __name__ == '__main__':
-    experiments_path = 'training/experiments/'
+    experiments_path = '../training/experiments/transformer'
     find_best_checkpoint(experiments_path)
     # plot_hyperparameters(experiments_path)
