@@ -38,10 +38,10 @@ def extract_faces_and_embeddings(dataloader, face_detector, feature_extractor, d
     """
     # Define how many frames are going to be stored in GPU
     mtcnn_gpu_dim = 8
-    incept_gpu_dim = 64
+    incept_gpu_dim = 128
 
     for batch in tqdm(dataloader):
-        for video_path, video_frame, label in zip(batch['video_path'], batch['frame'], batch['label']):
+        for video_path, video_frame, label in zip(batch.video_path, batch.frame, batch.label):
             faces = []
             # Chunk frame list to fill them into the GPU
             for chunk in list_chunks(video_frame, mtcnn_gpu_dim):
@@ -76,14 +76,14 @@ def extract_faces_and_embeddings(dataloader, face_detector, feature_extractor, d
 
 if __name__ == '__main__':
     dest_path = 'dataset\\video_embeddings'
-    dataset = VideoDataset('data\\train_data\\balanced_metadata.json', 2, check_path=dest_path)
+    dataset = VideoDataset('data\\train_data\\to_add.json', 2, check_path=dest_path)
     dataloader = DataLoader(
         dataset,
         # Keep batch size always > 1 since the custom collate function
         # will skip None videos and it will fall back to the rest
-        batch_size=2,
+        batch_size=6,
         # sampler=Subset[0, 1, 2],
-        num_workers=4,
+        num_workers=3,
         pin_memory=True,
         collate_fn=collate_fn
     )

@@ -1,13 +1,12 @@
 import os
 from typing import Dict, Union
-import pandas as pd
 
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
-from training.siamese.network import LSTMSiameseNetwork, TransformerSiameseNetwork
-from training.pytorchtools import EarlyStopping, SiameseMetric
+from training.finetuning.network import LSTMNetwork, TransformerNetwork
+from training.pytorchtools import EarlyStopping, DeepFakeMetric
 
 use_cuda = torch.cuda.is_available()
 DEVICE = torch.device("cuda:0" if use_cuda else "cpu")
@@ -43,33 +42,48 @@ class Model:
         if self.__network_type == 'LSTM':
             hidden_units = self.__net_params['hidden_units']
             layers_num = self.__net_params['layers_num']
-            network: nn.Module = LSTMSiameseNetwork(hidden_units,
-                                                    layers_num,
-                                                    fc_dim,
-                                                    video_emb_dim,
-                                                    audio_emb_dim,
-                                                    dropout_prob)
+            network: nn.Module = LSTMNetwork(hidden_units,
+                                             layers_num,
+                                             fc_dim,
+                                             video_emb_dim,
+                                             audio_emb_dim,
+                                             dropout_prob)
         elif self.__network_type == 'transformer':
             n_head = self.__net_params['n_head']
             dim_feedforward = self.__net_params['dim_feedforward']
             enc_layers = self.__net_params['enc_layers']
-            network: nn.Module = TransformerSiameseNetwork(n_head,
-                                                           dim_feedforward,
-                                                           enc_layers,
-                                                           dropout_prob,
-                                                           fc_dim,
-                                                           video_emb_dim,
-                                                           audio_emb_dim,
-                                                           )
+            network: nn.Module = TransformerNetwork(n_head,
+                                                    dim_feedforward,
+                                                    enc_layers,
+                                                    dropout_prob,
+                                                    fc_dim,
+                                                    video_emb_dim,
+                                                    audio_emb_dim,
+                                                    )
         else:
             raise ValueError('Bad network type. Please choose between "LSTM" and "transfomer"')
 
+        # Add pretrained weights to network
+        weights = torch.load(self.__net_params['checkpoint_path'])['state_dict']
+        delete_weights = [
+            'concat_branches.weight',
+            'concat_branches.bias',
+            'out.weight',
+            'out.bias'
+        ]
+        for w in delete_weights:
+            weights.pop(w)
+        network.load_state_dict(weights, strict=False)
+        # Disable grads for all layers except last one
+        for p in list(network.parameters())[:-2]:
+            p.requires_grad = False
+
         network.to(DEVICE)
-        acc_fn = SiameseMetric()
+        acc_fn = DeepFakeMetric()
 
         if self.__loss_type == "crossentropy":
             loss_fn = nn.CrossEntropyLoss()
-        elif self.__loss_type == "BCE":
+        elif self.__loss_type == 'BCE':
             loss_fn = nn.BCEWithLogitsLoss()
         else:
             raise ValueError("{} loss is not implemented yet".format(self.__loss_type))
@@ -126,8 +140,9 @@ class Model:
             conc_acc = []
 
             for batch in train_set:
-                net_inputs = (b.to(DEVICE) for b in batch[0:4])
-                labels = batch[-1].long().to(DEVICE)
+                filename, video_embedding, audio_embedding, label = batch
+                net_inputs = (video_embedding.to(DEVICE), audio_embedding.to(DEVICE))
+                labels = label.to(DEVICE)
 
                 # Forward pass
                 net_outs = net(net_inputs).squeeze()
@@ -163,8 +178,9 @@ class Model:
             conc_label = []
             with torch.no_grad():
                 for batch in val_set:
-                    net_inputs = (b.to(DEVICE) for b in batch[0:4])
-                    labels = batch[-1].long().to(DEVICE)
+                    filename, video_embedding, audio_embedding, label = batch
+                    net_inputs = (video_embedding.to(DEVICE), audio_embedding.to(DEVICE))
+                    labels = label.to(DEVICE)
 
                     # Evaluate the network over the input
                     net_outs = net(net_inputs).squeeze()

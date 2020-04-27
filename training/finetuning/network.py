@@ -6,37 +6,6 @@ import torch.nn.functional as F
 from torch.nn.modules.transformer import TransformerEncoder, TransformerEncoderLayer
 
 
-class ShallowNetwork(nn.Module):
-    def __init__(self,
-                 fc_dim,
-                 crop_dim,
-                 video_embedding_dim=512,
-                 audio_embedding_dim=256,
-                 dropout_prob=0.):
-        # Call the parent init function (required!)
-        super().__init__()
-
-        # FC layer to let the network decide how much audio will be considered to decide the result
-        self.fc = nn.Linear(video_embedding_dim*crop_dim + audio_embedding_dim, fc_dim)
-
-        # dropout layer after linear layer
-        self.dropout = nn.Dropout(dropout_prob)
-
-        # Define output layer
-        self.out = nn.Linear(fc_dim, 1)
-
-    def forward(self, inputs, state=None):
-        # Concatenating audio information
-        x = self.fc(torch.cat([inputs[0].view(inputs[0].shape[0], -1), inputs[1]], dim=1))
-
-        x = self.dropout(x)
-
-        # Linear layer
-        x = self.out(F.relu(x))
-
-        return x
-
-
 class LSTMNetwork(nn.Module):
     def __init__(self,
                  hidden_units,
@@ -55,6 +24,7 @@ class LSTMNetwork(nn.Module):
                            dropout=dropout_prob,
                            batch_first=True)
 
+
         # FC layer to let the network decide how much audio will be considered to decide the result
         self.fc = nn.Linear(hidden_units + audio_embedding_dim, fc_dim)
 
@@ -62,7 +32,7 @@ class LSTMNetwork(nn.Module):
         self.dropout = nn.Dropout(dropout_prob)
 
         # Define output layer
-        self.out = nn.Linear(fc_dim, 1)
+        self.out = nn.Linear(512, 1)
 
     def forward(self, inputs, state=None):
         # LSTM for video information
@@ -118,6 +88,6 @@ class TransformerNetwork(nn.Module):
         x = self.dropout(x)
 
         # Linear layer
-        x = self.out(x)
+        x = self.out(F.relu(x))
 
         return x

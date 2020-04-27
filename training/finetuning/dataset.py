@@ -49,21 +49,7 @@ class EmbeddingsDataset(Dataset):
         # return 119154
 
     def __getitem__(self, idx):
-        # Create sample
-        # Code for h5py version
-        # with h5py.File(self.path, mode='r') as f:
-        #     sample = {
-        #         'video_embedding': f['video_embedding'][idx].reshape((-1, 512)),
-        #         'audio_embedding': f['audio_embedding'][idx],
-        #         'label': f['label'][idx]
-        #     }
-        sample = {
-            'filename': self.__data[idx][0],
-            'video_embedding': self.__data[idx][1],
-            'audio_embedding': self.__data[idx][2],
-            'label': self.__data[idx][3]
-        }
-
+        sample = self.__data[idx]
         # Transform (if defined)
         return self.transform(sample) if self.transform else sample
 
@@ -73,8 +59,9 @@ class RandomCrop:
         self.crop_len = crop_len
 
     def __call__(self, sample):
-        video_embedding = sample['video_embedding']
+        filename, video_embedding, audio_embedding, label = sample
         # Randomly choose an index
+        video_embedding = video_embedding[::3, ...]
         tot_frames = video_embedding.shape[0]
 
         if self.crop_len > tot_frames:
@@ -85,27 +72,12 @@ class RandomCrop:
             end_idx = start_idx + self.crop_len
             cropped_embedding = video_embedding[start_idx:end_idx, ...]
 
-        return {**sample, 'video_embedding': cropped_embedding}
+        return filename, cropped_embedding, audio_embedding, label
 
 
 class ToTensor:
     def __call__(self, sample):
-        video_embedding = torch.tensor(sample['video_embedding']).float()
-        audio_embedding = torch.tensor(sample['audio_embedding']).float()
-        # audio_embedding = torch.tensor(np.zeros_like(sample['audio_embedding'])).float()
-        label = torch.tensor(sample['label']).float()
-        return {**sample, 'video_embedding': video_embedding, 'audio_embedding': audio_embedding, 'label': label}
-
-
-class LabelOneHot:
-    def __init__(self):
-        self.l = {
-            0: np.array([0, 1], dtype='uint8'),
-            1: np.array([1, 0], dtype='uint8')
-        }
-
-    def __call__(self, sample):
-        return {**sample, 'label': self.l[sample['label']]}
+        return (sample[0], *[torch.tensor(s).float() for s in sample[1:]])
 
 
 if __name__ == '__main__':

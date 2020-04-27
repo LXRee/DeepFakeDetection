@@ -33,10 +33,9 @@ if __name__ == '__main__':
     input_folder = os.path.join('data', 'train_audio')
     output_folder = os.path.join('dataset', 'audio_embeddings')
     # Load paths for wav audio files
-    paths = [os.path.join(input_folder, filename) for filename in os.listdir(input_folder)]
+    paths = [os.path.join(input_folder, filename) for filename in os.listdir(input_folder) if not os.path.isfile(os.path.join(output_folder, filename.split('.')[0] + '.csv'))]
     # Define workers for task
     processors = mp.cpu_count()
-    processors = 4
     pool = mp.Pool(processes=processors)
     paths_chunks = list_chunks(paths, len(paths) // processors)
     results = [pool.apply_async(extract_audio_embedding, args=[chunk, output_folder]) for chunk in paths_chunks]

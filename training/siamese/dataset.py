@@ -24,42 +24,36 @@ class EmbeddingsDataset(Dataset):
                 zip(fake_data['video_embedding'], fake_data['audio_embedding']))}
 
         # Keep list of integers in order to mix couples when calling getitem
-        self.__real_indexes = np.arange(0, len(self.__real_data))
-        self.__fake_indexes = np.arange(0, len(self.__fake_data))
+        self.__prev_index = 0
 
-        data = None
         gc.collect()
 
         self.transform = transform
-
-    def shuffle_indexes(self):
-        """
-        Use this method to shuffle indexes
-        :return:
-        """
-        np.random.shuffle(self.__real_indexes)
-        np.random.shuffle(self.__fake_indexes)
 
     def __len__(self):
         return len(self.__real_data.keys())
 
     def __getitem__(self, idx):
-        real_video_embedding, real_audio_embedding = self.__real_data[self.__real_indexes[idx]]
-        fake_video_embedding, fake_audio_embedding = self.__fake_data[self.__fake_indexes[idx]]
+        real_video_embedding, real_audio_embedding = self.__real_data[self.__prev_index]
+        fake_video_embedding, fake_audio_embedding = self.__fake_data[idx]
+        self.__prev_index = idx
         # Return sample and its label, with video embeddings and audio_embeddings in this order
         #   [0, 1] -> real, fake
         #   [1, 0] -> fake, real
-        sample = real_video_embedding, \
-                 real_audio_embedding, \
-                 fake_video_embedding, \
-                 fake_audio_embedding, \
-                 0. \
-                     if random.random() > 0.5 else \
-                     fake_video_embedding, \
-                 fake_audio_embedding, \
-                 real_video_embedding, \
-                 real_audio_embedding, \
-                 1.
+        if random.random() > 0.5:
+            sample = \
+                real_video_embedding, \
+                real_audio_embedding, \
+                fake_video_embedding, \
+                fake_audio_embedding, \
+                0.
+        else:
+            sample = \
+                fake_video_embedding, \
+                fake_audio_embedding, \
+                real_video_embedding, \
+                real_audio_embedding, \
+                1.
 
         # Transform (if defined)
         return self.transform(sample) if self.transform else sample
@@ -71,6 +65,8 @@ class RandomCrop:
 
     def crop(self, embedding):
         # Randomly choose an index
+        embedding = embedding[::3, ...]
+
         tot_frames = embedding.shape[0]
 
         if self.crop_len > tot_frames:
@@ -91,4 +87,4 @@ class RandomCrop:
 
 class ToTensor:
     def __call__(self, sample):
-        return (torch.tensor(t).float() for t in sample)
+        return list(torch.tensor(t).float() for t in sample)

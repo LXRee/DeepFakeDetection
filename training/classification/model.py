@@ -6,7 +6,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
-from training.network import LSTMNetwork, TransformerNetwork
+from training.classification.network import LSTMNetwork, TransformerNetwork, ShallowNetwork
 from training.pytorchtools import EarlyStopping, DeepFakeMetric
 
 use_cuda = torch.cuda.is_available()
@@ -63,6 +63,8 @@ class Model:
                                                     video_emb_dim,
                                                     audio_emb_dim,
                                                     )
+        elif self.__network_type == 'shallow':
+            network: nn.Module = ShallowNetwork(self.__net_params['fc_dim'], self.__net_params['crop_len'])
         else:
             raise ValueError('Bad network type. Please choose between "LSTM" and "transfomer"')
 

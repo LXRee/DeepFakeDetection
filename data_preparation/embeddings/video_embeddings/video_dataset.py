@@ -4,6 +4,7 @@ import os
 import cv2
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
+import torch
 
 from custom_exceptions import NoFrames, NoVideo
 
@@ -96,11 +97,7 @@ class VideoDataset(Dataset):
                     # Put frame into batch of frames
                     frames.append(frame)
             if frames:
-                return {
-                    'video_path': video_path,
-                    'frame': np.array(frames, dtype='uint8'),
-                    'label': self.metadata[video_path]['label']
-                }
+                return video_path, np.array(frames, dtype='uint8'), self.metadata[video_path]['label']
             # If no frame has been retrieved, raise exception
             else:
                 raise NoFrames(video_path)
@@ -122,21 +119,34 @@ def collate_fn(batch):
     :param batch:
     :return:
     """
-    # Filter out None videos (that is, the ones that triggered some custom_exceptions)
-    batch = list(filter(lambda x: x is not None, batch))
-    # Create lists for batch
-    video_paths = []
-    frames = []
-    labels = []
-    for el in batch:
-        video_paths.append(el['video_path'])
-        frames.append(el['frame'])
-        labels.append(el['label'])
-    return {
-        'video_path': video_paths,
-        'frame': frames,
-        'label': labels
-    }
+    return CustomBatch(batch)
+#     # Filter out None videos (that is, the ones that triggered some custom_exceptions)
+#     batch = list(filter(lambda x: x is not None, batch))
+#     # Create lists for batch
+#     video_paths = []
+#     frames = []
+#     labels = []
+#     for el in batch:
+#         video_paths.append(el['video_path'])
+#         frames.append(el['frame'])
+#         labels.append(el['label'])
+#     return {
+#         'video_path': video_paths,
+#         'frame': frames,
+#         'label': labels
+#     }
+
+
+class CustomBatch:
+    def __init__(self, data):
+        transposed_data = list(zip(*filter(lambda x: x is not None, data)))
+        self.video_path = transposed_data[0]
+        self.frame = transposed_data[1]
+        self.label = transposed_data[2]
+
+    # def pin_memory(self):
+    #     self.frame = [torch.tensor(t).pin_memory() for t in self.frame]
+    #     return self
 
 
 if __name__ == '__main__':

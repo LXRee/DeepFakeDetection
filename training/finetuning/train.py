@@ -10,9 +10,8 @@ import torch
 from torch.utils.data import DataLoader, Subset
 from torchvision import transforms
 
-from training.classification.dataset import EmbeddingsDataset, ToTensor, RandomCrop
-from training.classification.dataset_submission import EmbeddingsDataset as EMBSubmission, RandomCrop as RCSub, ToTensor as TTSub
-from training.classification.model import Model
+from training.finetuning.dataset import EmbeddingsDataset, ToTensor, RandomCrop
+from training.finetuning.model import Model
 
 DEVICE = 'cuda:0' if torch.cuda.is_available() else 'cpu'
 print('Running on device: {}'.format(DEVICE))
@@ -24,18 +23,18 @@ print('Running on device: {}'.format(DEVICE))
 parser = argparse.ArgumentParser(description='Train the deepfake network.')
 
 # Dataset
-parser.add_argument('--real_dataset_path',
+parser.add_argument('--dataset_reals_path',
                     type=str,
                     default='dataset/real_train.csv',
-                    help='Path of the train csv folder')
-parser.add_argument('--fake_dataset_path',
+                    help='Path of the true videos csv csv file')
+parser.add_argument('--dataset_fakes_path',
                     type=str,
                     default='dataset/fake_train.csv',
-                    help='Path of the train csv folder')
-parser.add_argument('--testdatasetpath',
+                    help='Path of the fake videos csv file')
+parser.add_argument('--checkpoint_path',
                     type=str,
-                    default='dataset/new_test_audio_video_embeddings.csv',
-                    help='Path of the test csv folder')
+                    default='source/training/siamese/experiments/transformer/crop6_head16_dimF2048_encL6_lr0.0001_fc1024_batch512_drop0.3/checkpoint_0.15873556_ep49.pt',
+                    help='Path of the pre-trained model')
 parser.add_argument('--crop_len',
                     type=int,
                     default=40,
@@ -44,7 +43,7 @@ parser.add_argument('--crop_len',
 # Network structure
 parser.add_argument('--video_embedding_dim', type=int, default=512, help='Dimension of features vector of video')
 parser.add_argument('--audio_embedding_dim', type=int, default=256, help='Dimension of features vector of audio')
-parser.add_argument('--network', type=str, default='shallow', help='Network to use')
+parser.add_argument('--network', type=str, default='LSTM', help='Network to use')
 
 # Model hyperparameters
 parser.add_argument('--fc_dim', type=int, default=512, help='Dimension of last FC layer that collects video and audio')
@@ -69,29 +68,34 @@ parser.add_argument('--num_epochs', type=int, default=100000, help='Number of tr
 parser.add_argument('--patience', type=int, default=2, help='Patience to use in EarlyStopping')
 
 # Save
-parser.add_argument('--model_dir', type=str, default='crop80_hid512_ln2_lr0.001_fc512_batch256_drop0.5',
+parser.add_argument('--model_dir', type=str, default='crop40_hid512_ln2_lr0.001_fc512_batch256_drop0.5',
                     help='Where to load from models and params')
 
 args = parser.parse_args()
-NETWORK = args.network
 FOLDS = 3
 
-REAL_DATASET_PATH = args.real_dataset_path
-FAKE_DATASET_PATH = args.fake_dataset_path
-TEST_DATASET_PATH = args.testdatasetpath
-CROP_LEN = args.crop_len
-
-VIDEO_EMBEDDING_DIM = args.video_embedding_dim
-AUDIO_EMBEDDING_DIM = args.audio_embedding_dim
-FC_DIM = args.fc_dim
-DROPOUT_PROB = args.dropout_prob
+REAL_DATASET_PATH = args.dataset_reals_path
+FAKE_DATASET_PATH = args.dataset_fakes_path
+CHECKPOINT_PATH = args.checkpoint_path
+# Retrieve network args from checkpoint
+network_args = json.load(open(os.path.join(os.path.dirname(CHECKPOINT_PATH), 'training_args.json'), 'r'))
+# Network type
+NETWORK = network_args['network']
+VIDEO_EMBEDDING_DIM = network_args['video_embedding_dim']
+AUDIO_EMBEDDING_DIM = network_args['audio_embedding_dim']
+FC_DIM = network_args['fc_dim']
 # LSTM
-HIDDEN_UNITS = args.hidden_units
-LAYERS_NUM = args.layers_num
+HIDDEN_UNITS = network_args['hidden_units']
+LAYERS_NUM = network_args['layers_num']
 # Tranformer
-N_HEAD = args.n_head
-DIM_FEEDFORWARD = args.dim_feedforward
-ENC_LAYERS = args.enc_layers
+N_HEAD = network_args['n_head']
+DIM_FEEDFORWARD = network_args['dim_feedforward']
+ENC_LAYERS = network_args['enc_layers']
+
+
+# Training args
+CROP_LEN = args.crop_len
+DROPOUT_PROB = args.dropout_prob
 # Training
 BATCH_SIZE = args.batchsize
 LEARNING_RATE = args.learning_rate
@@ -105,23 +109,10 @@ PATIENCE = args.patience
 # Parameters for grid search.
 # These hyperparameters overwrite the one parsed by argparse, so you should change
 # their values here.
-crop_len = [17]
+crop_len = [6]
 learning_rate = [1e-3]
 dropout_prob = [0.3]
 batch_size = [512]
-fc_dim = [64]
-
-if NETWORK == 'LSTM':
-    hidden_units = [512]
-    layers_num = [2]
-elif NETWORK == 'transformer':
-    n_head = [8, 16]
-    dim_feedforward = [256, 512, 1024]
-    enc_layers = [2]
-elif NETWORK == 'shallow':
-    pass
-else:
-    raise ValueError('{} network has not been implemented yet. Please choose between "LSTM" and "transformer"')
 
 
 def clean_folder(folder, loss, delta=0.02):
@@ -149,7 +140,6 @@ def do_the_job(parameters: Dict, dataset):
     LEARNING_RATE = parameters['learning_rate']
     DROPOUT_PROB = parameters['dropout_prob']
     BATCH_SIZE = parameters['batch_size']
-    FC_DIM = parameters['fc_dim']
 
     # overwrite hyper parameters args to save them in the right way
     args.crop_len = CROP_LEN
@@ -159,17 +149,15 @@ def do_the_job(parameters: Dict, dataset):
     args.fc_dim = FC_DIM
     # Define network params
     net_params = {
+        'checkpoint_path': CHECKPOINT_PATH,
         'fc_dim': FC_DIM,
         'dropout_prob': DROPOUT_PROB,
         'video_embedding_dim': VIDEO_EMBEDDING_DIM,
-        'audio_embedding_dim': AUDIO_EMBEDDING_DIM,
-        'crop_len': CROP_LEN
+        'audio_embedding_dim': AUDIO_EMBEDDING_DIM
     }
 
     if NETWORK == 'LSTM':
-        HIDDEN_UNITS = parameters['hidden_units']
-        LAYERS_NUM = parameters['layers_num']
-        RUN_PATH = os.path.join('source', 'training', 'classification', 'experiments', NETWORK,
+        RUN_PATH = os.path.join('source', 'training', 'finetuning', 'experiments', NETWORK,
                                 'crop{crop}_hid{hid}_ln{ln}_lr{lr}_fc{fc}_batch{b}_drop{d}'
                                 .format(crop=CROP_LEN,
                                         hid=HIDDEN_UNITS,
@@ -182,15 +170,12 @@ def do_the_job(parameters: Dict, dataset):
         args.hidden_units = HIDDEN_UNITS
         args.layers_num = LAYERS_NUM
 
-        # add LST params
+        # add LSTM params
         net_params['hidden_units'] = HIDDEN_UNITS
         net_params['layers_num'] = LAYERS_NUM
 
     elif NETWORK == 'transformer':
-        N_HEAD = parameters['n_head']
-        DIM_FEEDFORWARD = parameters['dim_feedforward']
-        ENC_LAYERS = parameters['enc_layers']
-        RUN_PATH = os.path.join('source', 'training', 'classification', 'experiments', NETWORK,
+        RUN_PATH = os.path.join('source', 'training', 'finetuning', 'experiments', NETWORK,
                                 'crop{crop}_head{head}_dimF{dimF}_encL{encL}_lr{lr}_fc{fc}_batch{b}_drop{d}'
                                 .format(crop=CROP_LEN,
                                         head=N_HEAD,
@@ -204,15 +189,11 @@ def do_the_job(parameters: Dict, dataset):
         args.n_head = N_HEAD
         args.dim_feedforward = DIM_FEEDFORWARD
         args.enc_layers = ENC_LAYERS
-    elif NETWORK == 'shallow':
-        RUN_PATH = os.path.join('source', 'training', 'classification', 'experiments', NETWORK,
-                                'crop{crop}_lr{lr}_fc{fc}_batch{b}_drop{d}'
-                                .format(crop=CROP_LEN,
-                                        lr=LEARNING_RATE,
-                                        d=DROPOUT_PROB,
-                                        b=BATCH_SIZE,
-                                        fc=FC_DIM))
-        # overwrite parameters that has been choosen from gridsearch
+
+        # Add transformer params
+        net_params['n_head'] = N_HEAD
+        net_params['dim_feedforward'] = DIM_FEEDFORWARD
+        net_params['enc_layers'] = ENC_LAYERS
     else:
         raise ValueError('Bad network type. Please choose between "LSTM" and "transformer"')
 
@@ -240,7 +221,8 @@ def do_the_job(parameters: Dict, dataset):
         # Prepare for kFold
         indexes = list(range(dataset_len))
         random.shuffle(indexes)
-        indexes_per_fold = int(dataset_len * VAL_SIZE)
+        random.shuffle(indexes)
+        indexes_per_fold = round(dataset_len * VAL_SIZE)
 
         # define loss array
         losses = np.zeros(FOLDS, 'float32')
@@ -252,11 +234,9 @@ def do_the_job(parameters: Dict, dataset):
 
             train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True, num_workers=0, pin_memory=True)
             val_loader = DataLoader(val_set, batch_size=round(BATCH_SIZE * VAL_SIZE), num_workers=0, pin_memory=True)
-
             model = Model(
                 NETWORK,
                 net_params,
-                dataset.get_pos_weight,
                 OPTIMIZER,
                 LOSS_TYPE,
                 LEARNING_RATE,
@@ -268,9 +248,6 @@ def do_the_job(parameters: Dict, dataset):
                 patience=PATIENCE,
                 run_name=RUN_PATH
             )
-            # Empty CUDA cache to avoid re-use of manipulated data.
-            torch.cuda.empty_cache()
-            torch.cuda.init()
         loss = losses.mean()
         with open(os.path.join(RUN_PATH, 'average_loss-{}-.txt').format(loss), 'w') as f:
             f.write('Average loss over {} folds: {:.4f}'.format(FOLDS, loss))
@@ -287,13 +264,14 @@ def do_the_job(parameters: Dict, dataset):
 
 def __train__():
     dataset = EmbeddingsDataset(real_csv_path=REAL_DATASET_PATH, fake_csv_path=FAKE_DATASET_PATH)
-
     # select grid search based on network type
+
     if NETWORK == 'LSTM':
-        for CROP_LEN, HIDDEN_UNITS, LAYERS_NUM, LEARNING_RATE, DROPOUT_PROB, BATCH_SIZE, FC_DIM in product(
-                crop_len, hidden_units, layers_num, learning_rate, dropout_prob, batch_size, fc_dim
+        for CROP_LEN, LEARNING_RATE, DROPOUT_PROB, BATCH_SIZE in product(
+                crop_len, learning_rate, dropout_prob, batch_size
         ):
             parameters = {
+                'checkpoint_path': CHECKPOINT_PATH,
                 'crop_len': CROP_LEN,
                 'learning_rate': LEARNING_RATE,
                 'dropout_prob': DROPOUT_PROB,
@@ -305,10 +283,11 @@ def __train__():
             do_the_job(parameters, dataset)
 
     elif NETWORK == 'transformer':
-        for CROP_LEN, N_HEAD, DIM_FEEDFORWARD, ENC_LAYERS, LEARNING_RATE, DROPOUT_PROB, BATCH_SIZE, FC_DIM in product(
-                crop_len, n_head, dim_feedforward, enc_layers, learning_rate, dropout_prob, batch_size, fc_dim
+        for CROP_LEN, LEARNING_RATE, DROPOUT_PROB, BATCH_SIZE in product(
+                crop_len, learning_rate, dropout_prob, batch_size
         ):
             parameters = {
+                'checkpoint_path': CHECKPOINT_PATH,
                 'crop_len': CROP_LEN,
                 'learning_rate': LEARNING_RATE,
                 'dropout_prob': DROPOUT_PROB,
@@ -319,67 +298,8 @@ def __train__():
                 'enc_layers': ENC_LAYERS
             }
             do_the_job(parameters, dataset)
-    elif NETWORK == 'shallow':
-        for CROP_LEN, LEARNING_RATE, DROPOUT_PROB, BATCH_SIZE, FC_DIM in product(
-            crop_len, learning_rate, dropout_prob, batch_size, fc_dim
-        ):
-            parameters = {
-                'crop_len': CROP_LEN,
-                'learning_rate': LEARNING_RATE,
-                'dropout_prob': DROPOUT_PROB,
-                'batch_size': BATCH_SIZE,
-                'fc_dim': FC_DIM
-            }
-            do_the_job(parameters, dataset)
     else:
         raise ValueError('Bad network type for {}. Please choose between "LSTM" or "transformer"'.format(NETWORK))
-
-
-def __evaluate__():
-    # Load training parameters
-    model_dir = os.path.join('source', 'training', 'experiments', 'LSTM', args.model_dir)
-    print('Loading model from: %s' % model_dir)
-    training_args = json.load(open(os.path.join(model_dir, 'training_args.json')))
-
-    CROP_LEN = training_args['crop_len']
-
-    trans = transforms.Compose([
-        RCSub(CROP_LEN),
-        # LabelOneHot(),
-        TTSub()
-    ])
-
-    test_set = EMBSubmission(csv_path=TEST_DATASET_PATH, transform=trans)
-    test_loader = DataLoader(test_set, batch_size=len(test_set), num_workers=0, pin_memory=True)
-    # Restore hyper parameters based on network type
-    network_type = training_args['network']
-    net_params = {
-        'dropout_prob': training_args['dropout_prob'],
-        'fc_dim': training_args['fc_dim'],
-        'video_embedding_dim': training_args['video_embedding_dim'],
-        'audio_embedding_dim': training_args['audio_embedding_dim']
-    }
-    if network_type == 'LSTM':
-        net_params['hidden_units'] = training_args['hidden_units']
-        net_params['layers_num'] = training_args['layers_num']
-    elif network_type == 'transformer':
-        net_params['n_head'] = training_args['n_head']
-        net_params['dim_feedforward'] = training_args['dim_feedforward']
-        net_params['enc_layers'] = training_args['enc_layers']
-    else:
-        raise ValueError("Bad network type. Please be sure to restore models from 'LSTM' or 'transfomer' networks")
-
-    model = Model(network_type,
-                  net_params,
-                  test_set.get_pos_weight,
-                  training_args['optimizer'],
-                  training_args['loss_type'],
-                  training_args['learning_rate'])
-
-    # Load network trained parameters and evaluate
-    model.net.load_state_dict(torch.load(os.path.join(model_dir, 'checkpoint_0.2840127_ep28.pt'))['state_dict'])
-    # model.evaluate(test_loader)
-    model.submit(test_loader, 'submission.csv')
 
 
 if __name__ == '__main__':

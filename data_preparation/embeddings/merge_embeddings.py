@@ -90,10 +90,11 @@ def merge_audio_video_embeddings(metadata_path, audio_embedding_path, video_embe
     :return:
     """
     # Create dict to convert labels to int values
-    label_to_int = {'FAKE': 1, 'REAL': 0}
+    # label_to_int = {'FAKE': 1, 'REAL': 0}
     # Retrieve metadata file used for video and audio extraction. Then create the list of path/to/videos
-    metadata = json.load(open(metadata_path, 'r'))
-    video_paths = list(metadata.keys())
+    # metadata = json.load(open(metadata_path, 'r'))
+    # video_paths = list(metadata.keys())
+    video_paths = [os.path.join(video_embedding_path, filename) for filename in os.listdir(video_embedding_path)]
     # Shuffle video paths since the metadata contains all REAL videos and the all FAKE ones.
     shuffle(video_paths)
     # Create new dataframe
@@ -101,30 +102,32 @@ def merge_audio_video_embeddings(metadata_path, audio_embedding_path, video_embe
     # Iterate over all video paths
     for path in tqdm(video_paths, desc="Merging embeddings"):
         # csv Filename
-        filename = os.path.basename(path).split('.')[0] + '.csv'
+        filename = os.path.basename(path)
         # Audio embedding
         try:
             audio_embedding = pd.read_pickle(os.path.join(audio_embedding_path, filename))['audio_embedding'].loc[0]
         except FileNotFoundError as e:
             audio_embedding = np.zeros((256, ), 'float32')
-            print("I didn't find {}".format(e))
+            # print("I didn't find {}".format(e))
         # Video embedding
         try:
-            video_embedding = pd.read_pickle(os.path.join(video_embedding_path, filename))['video_embedding'].loc[0]
+            temp = pd.read_pickle(os.path.join(video_embedding_path, filename))
+            video_embedding = temp['video_embedding'].loc[0]
+            label = temp['label'].loc[0]
         except FileNotFoundError as e:
             video_embedding = np.zeros((1, 512), 'float32')
             print("I didn't find {}".format(e))
         # Convert label directly from metadata
-        label = label_to_int[metadata[path]['label']]
+        # label = label_to_int[metadata[path]['label']]
         # Append new row at the end of the dataframe
-        df.loc[df['label'].shape[0]] = [os.path.basename(path), video_embedding, audio_embedding, label]
+        df.loc[df['label'].shape[0]] = [filename, video_embedding, audio_embedding, label]
     # Save dataframe to disk
     df.to_pickle(dest_path)
 
 
 if __name__ == '__main__':
-    metadata_path = os.path.join('data', 'train_data', 'balanced_metadata.json')
+    metadata_path = os.path.join('data', 'train_data', 'to_add.json')
     audio_embeddings_path = os.path.join('dataset', 'audio_embeddings')
-    video_embeddings_path = os.path.join('dataset', 'video_embeddings')
-    dest_path = os.path.join('dataset', 'train_audio_video_embeddings.csv')
+    video_embeddings_path = os.path.join('dataset', 'other_real_videos')
+    dest_path = os.path.join('dataset', 'real_audio_video.csv')
     merge_audio_video_embeddings(metadata_path, audio_embeddings_path, video_embeddings_path, dest_path)

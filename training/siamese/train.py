@@ -23,14 +23,14 @@ print('Running on device: {}'.format(DEVICE))
 parser = argparse.ArgumentParser(description='Train the deepfake network.')
 
 # Dataset
-parser.add_argument('--datasetpath',
+parser.add_argument('--dataset_reals_path',
                     type=str,
-                    default='dataset/part_train_audio_video_embeddings.csv',
-                    help='Path of the train csv folder')
-parser.add_argument('--testdatasetpath',
+                    default='dataset/real_train.csv',
+                    help='Path of the true videos csv csv file')
+parser.add_argument('--dataset_fakes_path',
                     type=str,
-                    default='dataset/new_test_audio_video_embeddings.csv',
-                    help='Path of the test csv folder')
+                    default='dataset/fake_train.csv',
+                    help='Path of the fake videos csv file')
 parser.add_argument('--crop_len',
                     type=int,
                     default=40,
@@ -39,7 +39,7 @@ parser.add_argument('--crop_len',
 # Network structure
 parser.add_argument('--video_embedding_dim', type=int, default=512, help='Dimension of features vector of video')
 parser.add_argument('--audio_embedding_dim', type=int, default=256, help='Dimension of features vector of audio')
-parser.add_argument('--network', type=str, default='LSTM', help='Network to use')
+parser.add_argument('--network', type=str, default='transformer', help='Network to use')
 
 # Model hyperparameters
 parser.add_argument('--fc_dim', type=int, default=512, help='Dimension of last FC layer that collects video and audio')
@@ -61,17 +61,18 @@ parser.add_argument('--loss_type', type=str, default='crossentropy', help='Loss 
 parser.add_argument('--val_size', type=float, default=.3, help='Dimension of validation')
 parser.add_argument('--learning_rate', type=float, default=1e-5, help='Learning rate')
 parser.add_argument('--num_epochs', type=int, default=100000, help='Number of training epochs')
-parser.add_argument('--patience', type=int, default=5, help='Patience to use in EarlyStopping')
+parser.add_argument('--patience', type=int, default=2, help='Patience to use in EarlyStopping')
 
 # Save
-parser.add_argument('--model_dir', type=str, default='TESTcrop40_hid512_ln2_lr0.001_fc512_batch256_drop0.5', help='Where to load from models and params')
+parser.add_argument('--model_dir', type=str, default='TESTcrop40_hid512_ln2_lr0.001_fc512_batch256_drop0.5',
+                    help='Where to load from models and params')
 
 args = parser.parse_args()
 NETWORK = args.network
 FOLDS = 3
 
-TRAIN_DATASET_PATH = args.datasetpath
-TEST_DATASET_PATH = args.testdatasetpath
+REAL_DATASET_PATH = args.dataset_reals_path
+FAKE_DATASET_PATH = args.dataset_fakes_path
 CROP_LEN = args.crop_len
 
 VIDEO_EMBEDDING_DIM = args.video_embedding_dim
@@ -98,17 +99,17 @@ PATIENCE = args.patience
 # Parameters for grid search.
 # These hyperparameters overwrite the one parsed by argparse, so you should change
 # their values here.
-crop_len = [40]
-learning_rate = [1e-3]
-dropout_prob = [0.5]
-batch_size = [256]
-fc_dim = [512]
+crop_len = [6]
+learning_rate = [1e-4]
+dropout_prob = [0.3]
+batch_size = [512]
+fc_dim = [512, 1024]
 
 if NETWORK == 'LSTM':
-    hidden_units = [512]
-    layers_num = [2]
+    hidden_units = [256, 512, 1024]
+    layers_num = [2, 3]
 elif NETWORK == 'transformer':
-    n_head = [8]
+    n_head = [16]
     dim_feedforward = [2048]
     enc_layers = [6]
 else:
@@ -159,8 +160,8 @@ def do_the_job(parameters: Dict, dataset):
     if NETWORK == 'LSTM':
         HIDDEN_UNITS = parameters['hidden_units']
         LAYERS_NUM = parameters['layers_num']
-        RUN_PATH = os.path.join('source', 'training', 'experiments', NETWORK,
-                                'TESTcrop{crop}_hid{hid}_ln{ln}_lr{lr}_fc{fc}_batch{b}_drop{d}'
+        RUN_PATH = os.path.join('source', 'training', 'siamese', 'experiments', NETWORK,
+                                'crop{crop}_hid{hid}_ln{ln}_lr{lr}_fc{fc}_batch{b}_drop{d}'
                                 .format(crop=CROP_LEN,
                                         hid=HIDDEN_UNITS,
                                         ln=LAYERS_NUM,
@@ -180,7 +181,7 @@ def do_the_job(parameters: Dict, dataset):
         N_HEAD = parameters['n_head']
         DIM_FEEDFORWARD = parameters['dim_feedforward']
         ENC_LAYERS = parameters['enc_layers']
-        RUN_PATH = os.path.join('source', 'training', 'experiments', NETWORK,
+        RUN_PATH = os.path.join('source', 'training', 'siamese', 'experiments', NETWORK,
                                 'crop{crop}_head{head}_dimF{dimF}_encL{encL}_lr{lr}_fc{fc}_batch{b}_drop{d}'
                                 .format(crop=CROP_LEN,
                                         head=N_HEAD,
@@ -226,6 +227,7 @@ def do_the_job(parameters: Dict, dataset):
         # Prepare for kFold
         indexes = list(range(dataset_len))
         random.shuffle(indexes)
+        random.shuffle(indexes)
         indexes_per_fold = round(dataset_len * VAL_SIZE)
 
         # define loss array
@@ -234,15 +236,13 @@ def do_the_job(parameters: Dict, dataset):
         for i in range(FOLDS):
             print("Training fold {}/{}".format(i + 1, FOLDS))
             val_set = Subset(dataset, indexes[i * indexes_per_fold: (i + 1) * indexes_per_fold])
-            train_set = Subset(dataset,
-                               indexes[0: max(i - 1, 0) * indexes_per_fold] + indexes[(i + 1) * indexes_per_fold:])
+            train_set = Subset(dataset, indexes[0: i * indexes_per_fold] + indexes[(i + 1) * indexes_per_fold:])
 
             train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True, num_workers=0, pin_memory=True)
             val_loader = DataLoader(val_set, batch_size=round(BATCH_SIZE * VAL_SIZE), num_workers=0, pin_memory=True)
             model = Model(
                 NETWORK,
                 net_params,
-                dataset.get_pos_weight,
                 OPTIMIZER,
                 LOSS_TYPE,
                 LEARNING_RATE,
@@ -251,13 +251,9 @@ def do_the_job(parameters: Dict, dataset):
                 epochs=NUM_EPOCHS,
                 train_set=train_loader,
                 val_set=val_loader,
-                shuffle_trainset=dataset.shuffle_indexes,
                 patience=PATIENCE,
                 run_name=RUN_PATH
             )
-            # Empty CUDA cache to avoid re-use of manipulated data.
-            torch.cuda.empty_cache()
-            torch.cuda.init()
         loss = losses.mean()
         with open(os.path.join(RUN_PATH, 'average_loss-{}-.txt').format(loss), 'w') as f:
             f.write('Average loss over {} folds: {:.4f}'.format(FOLDS, loss))
@@ -273,7 +269,7 @@ def do_the_job(parameters: Dict, dataset):
 
 
 def __train__():
-    dataset = EmbeddingsDataset(csv_path=TRAIN_DATASET_PATH)
+    dataset = EmbeddingsDataset(real_csv_path=REAL_DATASET_PATH, fake_csv_path=FAKE_DATASET_PATH)
     # select grid search based on network type
     if NETWORK == 'LSTM':
         for CROP_LEN, HIDDEN_UNITS, LAYERS_NUM, LEARNING_RATE, DROPOUT_PROB, BATCH_SIZE, FC_DIM in product(
@@ -310,5 +306,5 @@ def __train__():
 
 
 if __name__ == '__main__':
-    # __train__()
-    __evaluate__()
+    __train__()
+    # __evaluate__()
